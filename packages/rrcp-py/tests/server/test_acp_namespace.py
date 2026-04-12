@@ -5,11 +5,11 @@ from typing import Any
 
 import pytest
 
-from rrcp_server.protocol.identity import Identity, UserIdentity
-from rrcp_server.protocol.thread import Thread
-from rrcp_server.server.acp import AcpServer
-from rrcp_server.server.auth import HandshakeData
-from rrcp_server.server.namespace import NamespaceViolation
+from rrcp.protocol.identity import Identity, UserIdentity
+from rrcp.protocol.thread import Thread
+from rrcp.server.auth import HandshakeData
+from rrcp.server.namespace import NamespaceViolation
+from rrcp.server.thread_server import ThreadServer
 
 
 class _StubStore:
@@ -24,22 +24,22 @@ async def _auth(_: HandshakeData) -> Identity:
     return UserIdentity(id="u", name="U", metadata={})
 
 
-class TestAcpServerNamespaceKeys:
+class TestThreadServerNamespaceKeys:
     def test_defaults_to_none(self) -> None:
-        acp = AcpServer(store=_StubStore(), authenticate=_auth)  # type: ignore[arg-type]
-        assert acp.namespace_keys is None
+        thread_server = ThreadServer(store=_StubStore(), authenticate=_auth)  # type: ignore[arg-type]
+        assert thread_server.namespace_keys is None
 
     def test_accepts_list(self) -> None:
-        acp = AcpServer(
+        thread_server = ThreadServer(
             store=_StubStore(),  # type: ignore[arg-type]
             authenticate=_auth,
             namespace_keys=["organization", "workspace"],
         )
-        assert acp.namespace_keys == ["organization", "workspace"]
+        assert thread_server.namespace_keys == ["organization", "workspace"]
 
     def test_rejects_empty_list(self) -> None:
         with pytest.raises(NamespaceViolation, match="non-empty"):
-            AcpServer(
+            ThreadServer(
                 store=_StubStore(),  # type: ignore[arg-type]
                 authenticate=_auth,
                 namespace_keys=[],
@@ -47,7 +47,7 @@ class TestAcpServerNamespaceKeys:
 
     def test_rejects_duplicate_keys(self) -> None:
         with pytest.raises(NamespaceViolation, match="duplicate"):
-            AcpServer(
+            ThreadServer(
                 store=_StubStore(),  # type: ignore[arg-type]
                 authenticate=_auth,
                 namespace_keys=["org", "org"],
@@ -55,12 +55,11 @@ class TestAcpServerNamespaceKeys:
 
     def test_rejects_empty_key(self) -> None:
         with pytest.raises(NamespaceViolation, match="empty key"):
-            AcpServer(
+            ThreadServer(
                 store=_StubStore(),  # type: ignore[arg-type]
                 authenticate=_auth,
                 namespace_keys=["org", ""],
             )
-
 
 
 def _thread(tenant: dict[str, str]) -> Thread:
@@ -75,41 +74,39 @@ def _thread(tenant: dict[str, str]) -> Thread:
 
 class TestNamespaceForThread:
     def test_returns_none_when_keys_not_configured(self) -> None:
-        acp = AcpServer(store=_StubStore(), authenticate=_auth)  # type: ignore[arg-type]
-        assert acp.namespace_for_thread(_thread({"org": "A"})) is None
+        thread_server = ThreadServer(store=_StubStore(), authenticate=_auth)  # type: ignore[arg-type]
+        assert thread_server.namespace_for_thread(_thread({"org": "A"})) is None
 
     def test_returns_path_when_keys_configured(self) -> None:
-        acp = AcpServer(
+        thread_server = ThreadServer(
             store=_StubStore(),  # type: ignore[arg-type]
             authenticate=_auth,
             namespace_keys=["org"],
         )
-        assert acp.namespace_for_thread(_thread({"org": "A"})) == "/A"
+        assert thread_server.namespace_for_thread(_thread({"org": "A"})) == "/A"
 
     def test_raises_when_thread_missing_required_key(self) -> None:
-        acp = AcpServer(
+        thread_server = ThreadServer(
             store=_StubStore(),  # type: ignore[arg-type]
             authenticate=_auth,
             namespace_keys=["org"],
         )
         with pytest.raises(NamespaceViolation, match="missing required key"):
-            acp.namespace_for_thread(_thread({}))
+            thread_server.namespace_for_thread(_thread({}))
 
 
 class TestEnforceNamespaceOnIdentity:
     def test_noop_when_keys_not_configured(self) -> None:
-        acp = AcpServer(store=_StubStore(), authenticate=_auth)  # type: ignore[arg-type]
-        acp.enforce_namespace_on_identity(
-            UserIdentity(id="u", name="U", metadata={})
-        )
+        thread_server = ThreadServer(store=_StubStore(), authenticate=_auth)  # type: ignore[arg-type]
+        thread_server.enforce_namespace_on_identity(UserIdentity(id="u", name="U", metadata={}))
 
     def test_passes_when_identity_has_all_keys(self) -> None:
-        acp = AcpServer(
+        thread_server = ThreadServer(
             store=_StubStore(),  # type: ignore[arg-type]
             authenticate=_auth,
             namespace_keys=["org"],
         )
-        acp.enforce_namespace_on_identity(
+        thread_server.enforce_namespace_on_identity(
             UserIdentity(
                 id="u",
                 name="U",
@@ -118,24 +115,22 @@ class TestEnforceNamespaceOnIdentity:
         )
 
     def test_raises_when_identity_missing_tenant(self) -> None:
-        acp = AcpServer(
+        thread_server = ThreadServer(
             store=_StubStore(),  # type: ignore[arg-type]
             authenticate=_auth,
             namespace_keys=["org"],
         )
         with pytest.raises(NamespaceViolation, match="missing required key"):
-            acp.enforce_namespace_on_identity(
-                UserIdentity(id="u", name="U", metadata={})
-            )
+            thread_server.enforce_namespace_on_identity(UserIdentity(id="u", name="U", metadata={}))
 
     def test_raises_when_identity_missing_one_of_many_keys(self) -> None:
-        acp = AcpServer(
+        thread_server = ThreadServer(
             store=_StubStore(),  # type: ignore[arg-type]
             authenticate=_auth,
             namespace_keys=["org", "ws"],
         )
         with pytest.raises(NamespaceViolation, match="missing required key: ws"):
-            acp.enforce_namespace_on_identity(
+            thread_server.enforce_namespace_on_identity(
                 UserIdentity(
                     id="u",
                     name="U",

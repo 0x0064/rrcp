@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from rrcp_server.server.namespace import (
+from rrcp.server.namespace import (
     NamespaceViolation,
     derive_namespace_path,
     parse_namespace_path,
@@ -85,9 +85,7 @@ class TestParseNamespacePath:
         assert parse_namespace_path("/A", namespace_keys=["org"]) == {"org": "A"}
 
     def test_multiple_keys(self) -> None:
-        assert parse_namespace_path(
-            "/A/X", namespace_keys=["org", "ws"]
-        ) == {"org": "A", "ws": "X"}
+        assert parse_namespace_path("/A/X", namespace_keys=["org", "ws"]) == {"org": "A", "ws": "X"}
 
     def test_segment_count_mismatch(self) -> None:
         with pytest.raises(NamespaceViolation, match="expected 2 segment"):

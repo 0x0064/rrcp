@@ -2,21 +2,21 @@
 // an explicit @tanstack/react-query import.
 export { QueryClient } from '@tanstack/react-query'
 export {
-  AcpAuthError,
-  AcpClient,
-  type AcpClientOptions,
-  AcpConflictError,
-  AcpHttpError,
-  AcpNotFoundError,
   type AuthenticatePayload,
   type Page,
-} from './client/AcpClient'
-export { useAcpClient, useAcpStore } from './hooks/useAcpClient'
+  ThreadAuthError,
+  ThreadClient,
+  type ThreadClientOptions,
+  ThreadConflictError,
+  ThreadHttpError,
+  ThreadNotFoundError,
+} from './client/ThreadClient'
 export { useConnectionStatus } from './hooks/useConnectionStatus'
 export { type CreateThreadInput, useCreateThread } from './hooks/useCreateThread'
 export { useSuspenseThread } from './hooks/useSuspenseThread'
 export { type UseThreadActions, useThreadActions } from './hooks/useThreadActions'
 export { useThreadActiveRuns } from './hooks/useThreadActiveRuns'
+export { useThreadClient, useThreadStore } from './hooks/useThreadClient'
 export { useThreadEvents } from './hooks/useThreadEvents'
 export { useThreadIsWorking } from './hooks/useThreadIsWorking'
 export { useThreadMembers } from './hooks/useThreadMembers'
@@ -68,8 +68,8 @@ export type { Run, RunError, RunStatus } from './protocol/run'
 export type { TenantScope } from './protocol/tenant'
 export { tenantMatches } from './protocol/tenant'
 export type { Thread, ThreadMember, ThreadPatch } from './protocol/thread'
-export { AcpContext, type AcpContextValue } from './provider/AcpContext'
-export { AcpProvider, type AcpProviderProps } from './provider/AcpProvider'
+export { ThreadContext, type ThreadContextValue } from './provider/ThreadContext'
+export { ThreadProvider, type ThreadProviderProps } from './provider/ThreadProvider'
 export {
   type ConnectionStatus,
   createThreadStore,

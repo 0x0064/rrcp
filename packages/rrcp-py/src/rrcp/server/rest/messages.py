@@ -5,11 +5,11 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from rrcp_server.protocol.event import Event, EventDraft, MessageEvent
-from rrcp_server.protocol.identity import Identity
-from rrcp_server.protocol.tenant import matches
-from rrcp_server.server.rest.deps import get_server, identity_tenant, resolve_identity
-from rrcp_server.store.types import Page
+from rrcp.protocol.event import Event, EventDraft, MessageEvent
+from rrcp.protocol.identity import Identity
+from rrcp.protocol.tenant import matches
+from rrcp.server.rest.deps import get_server, identity_tenant, resolve_identity
+from rrcp.store.types import Page
 
 
 def build_router() -> APIRouter:

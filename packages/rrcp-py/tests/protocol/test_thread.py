@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
-from rrcp_server.protocol.identity import UserIdentity
-from rrcp_server.protocol.thread import Thread, ThreadMember, ThreadPatch
+from rrcp.protocol.identity import UserIdentity
+from rrcp.protocol.thread import Thread, ThreadMember, ThreadPatch
 
 
 def test_thread_minimum() -> None:

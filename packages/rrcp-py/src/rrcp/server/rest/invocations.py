@@ -5,10 +5,10 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-from rrcp_server.protocol.identity import AssistantIdentity, Identity
-from rrcp_server.protocol.run import Run
-from rrcp_server.protocol.tenant import matches
-from rrcp_server.server.rest.deps import get_server, identity_tenant, resolve_identity
+from rrcp.protocol.identity import AssistantIdentity, Identity
+from rrcp.protocol.run import Run
+from rrcp.protocol.tenant import matches
+from rrcp.server.rest.deps import get_server, identity_tenant, resolve_identity
 
 
 class InvokeBody(BaseModel):

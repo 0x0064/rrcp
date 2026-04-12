@@ -8,27 +8,25 @@ from typing import Protocol
 
 import asyncpg
 
-from rrcp_server.analytics.collector import AssistantAnalytics, OnAnalyticsCallback
-from rrcp_server.handler.context import HandlerContext
-from rrcp_server.handler.send import HandlerSend
-from rrcp_server.handler.types import HandlerCallable
-from rrcp_server.protocol.event import (
+from rrcp.analytics.collector import AssistantAnalytics, OnAnalyticsCallback
+from rrcp.handler.context import HandlerContext
+from rrcp.handler.send import HandlerSend
+from rrcp.handler.types import HandlerCallable
+from rrcp.protocol.event import (
     Event,
     RunCancelledEvent,
     RunCompletedEvent,
     RunFailedEvent,
     RunStartedEvent,
 )
-from rrcp_server.protocol.identity import AssistantIdentity, Identity
-from rrcp_server.protocol.run import Run, RunError
-from rrcp_server.protocol.thread import Thread
-from rrcp_server.store.protocol import ThreadStore
+from rrcp.protocol.identity import AssistantIdentity, Identity
+from rrcp.protocol.run import Run, RunError
+from rrcp.protocol.thread import Thread
+from rrcp.store.protocol import ThreadStore
 
 
 class PublishEventCallable(Protocol):
-    async def __call__(
-        self, event: Event, *, thread: Thread | None = None
-    ) -> Event: ...
+    async def __call__(self, event: Event, *, thread: Thread | None = None) -> Event: ...
 
 
 HandlerResolver = Callable[[str], HandlerCallable | None]
@@ -47,9 +45,8 @@ class RunExecutor:
         self._on_analytics = on_analytics
         self._run_timeout_seconds = run_timeout_seconds
         if publish_event is None:
-            async def _default_publish(
-                event: Event, *, thread: Thread | None = None
-            ) -> Event:
+
+            async def _default_publish(event: Event, *, thread: Thread | None = None) -> Event:
                 return await store.append_event(event)
 
             self._publish_event: PublishEventCallable = _default_publish

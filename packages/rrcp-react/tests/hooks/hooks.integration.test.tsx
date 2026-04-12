@@ -1,16 +1,16 @@
 import { act, render, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import type { AcpClient } from '../../src/client/AcpClient'
+import type { ThreadClient } from '../../src/client/ThreadClient'
 import { useThreadEvents } from '../../src/hooks/useThreadEvents'
 import { useThreadIsWorking } from '../../src/hooks/useThreadIsWorking'
 import { useThreadSession } from '../../src/hooks/useThreadSession'
-import { AcpContext } from '../../src/provider/AcpContext'
+import { ThreadContext } from '../../src/provider/ThreadContext'
 import { createThreadStore } from '../../src/store/threadStore'
 
-function harness(client: AcpClient, store: ReturnType<typeof createThreadStore>) {
+function harness(client: ThreadClient, store: ReturnType<typeof createThreadStore>) {
   return ({ children }: { children: ReactNode }) => (
-    <AcpContext.Provider value={{ client, store }}>{children}</AcpContext.Provider>
+    <ThreadContext.Provider value={{ client, store }}>{children}</ThreadContext.Provider>
   )
 }
 
@@ -58,7 +58,7 @@ describe('hooks integration', () => {
         updatedAt: '',
       }),
       listMembers: vi.fn().mockResolvedValue([]),
-    } as unknown as AcpClient
+    } as unknown as ThreadClient
 
     const store = createThreadStore()
     const Wrapper = harness(client, store)
@@ -93,7 +93,7 @@ describe('hooks integration', () => {
         updatedAt: '',
       }),
       listMembers: vi.fn().mockResolvedValue([]),
-    } as unknown as AcpClient
+    } as unknown as ThreadClient
 
     const store = createThreadStore()
     const Wrapper = harness(client, store)
@@ -138,7 +138,7 @@ describe('hooks integration', () => {
         updatedAt: '',
       }),
       listMembers: vi.fn().mockResolvedValue([]),
-    } as unknown as AcpClient
+    } as unknown as ThreadClient
 
     const store = createThreadStore()
     const Wrapper = harness(client, store)

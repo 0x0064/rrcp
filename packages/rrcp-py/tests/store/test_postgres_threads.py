@@ -5,8 +5,8 @@ from datetime import UTC, datetime
 import asyncpg
 import pytest
 
-from rrcp_server.protocol.thread import Thread, ThreadPatch
-from rrcp_server.store.postgres.store import PostgresThreadStore
+from rrcp.protocol.thread import Thread, ThreadPatch
+from rrcp.store.postgres.store import PostgresThreadStore
 
 
 @pytest.fixture

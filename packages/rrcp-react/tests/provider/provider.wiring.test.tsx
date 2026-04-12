@@ -23,17 +23,17 @@ vi.mock('socket.io-client', () => ({
   })),
 }))
 
-import type { useAcpStore } from '../../src/hooks/useAcpClient'
-import { AcpContext } from '../../src/provider/AcpContext'
-import { AcpProvider } from '../../src/provider/AcpProvider'
+import type { useThreadStore } from '../../src/hooks/useThreadClient'
+import { ThreadContext } from '../../src/provider/ThreadContext'
+import { ThreadProvider } from '../../src/provider/ThreadProvider'
 
-function StoreProbe({ onStore }: { onStore: (s: ReturnType<typeof useAcpStore>) => void }) {
-  const ctx = useContext(AcpContext)
+function StoreProbe({ onStore }: { onStore: (s: ReturnType<typeof useThreadStore>) => void }) {
+  const ctx = useContext(ThreadContext)
   if (ctx) onStore(ctx.store)
   return null
 }
 
-describe('AcpProvider socket wiring', () => {
+describe('ThreadProvider socket wiring', () => {
   beforeEach(() => {
     socketOn.mockClear()
     socketOnce.mockClear()
@@ -41,15 +41,15 @@ describe('AcpProvider socket wiring', () => {
   })
 
   it('routes thread:updated socket events into store.threadMeta', async () => {
-    let captured: ReturnType<typeof useAcpStore> | null = null
+    let captured: ReturnType<typeof useThreadStore> | null = null
     render(
-      <AcpProvider url="http://x" authenticate={async () => ({})}>
+      <ThreadProvider url="http://x" authenticate={async () => ({})}>
         <StoreProbe
           onStore={(s) => {
             captured = s
           }}
         />
-      </AcpProvider>
+      </ThreadProvider>
     )
 
     await waitFor(() => expect(captured).not.toBeNull())
@@ -67,7 +67,7 @@ describe('AcpProvider socket wiring', () => {
       updated_at: '2026-04-10T00:05:00Z',
     })
 
-    const store = captured as unknown as ReturnType<typeof useAcpStore>
+    const store = captured as unknown as ReturnType<typeof useThreadStore>
     expect(store.getState().threadMeta.th_1).toMatchObject({
       id: 'th_1',
       tenant: { org: 'A' },
@@ -78,15 +78,15 @@ describe('AcpProvider socket wiring', () => {
   })
 
   it('routes members:updated socket events into store.members', async () => {
-    let captured: ReturnType<typeof useAcpStore> | null = null
+    let captured: ReturnType<typeof useThreadStore> | null = null
     render(
-      <AcpProvider url="http://x" authenticate={async () => ({})}>
+      <ThreadProvider url="http://x" authenticate={async () => ({})}>
         <StoreProbe
           onStore={(s) => {
             captured = s
           }}
         />
-      </AcpProvider>
+      </ThreadProvider>
     )
 
     await waitFor(() => expect(captured).not.toBeNull())
@@ -103,7 +103,7 @@ describe('AcpProvider socket wiring', () => {
       ],
     })
 
-    const store = captured as unknown as ReturnType<typeof useAcpStore>
+    const store = captured as unknown as ReturnType<typeof useThreadStore>
     const members = store.getState().members.th_1
     expect(members).toHaveLength(2)
     expect(members?.[0]?.id).toBe('u1')
@@ -111,7 +111,7 @@ describe('AcpProvider socket wiring', () => {
   })
 })
 
-describe('AcpProvider TanStack Query integration', () => {
+describe('ThreadProvider TanStack Query integration', () => {
   it('uses the consumer-provided QueryClient when one is passed', async () => {
     const consumerQc = new QueryClient()
     let captured: unknown = null
@@ -122,9 +122,9 @@ describe('AcpProvider TanStack Query integration', () => {
     }
 
     render(
-      <AcpProvider url="http://x" authenticate={async () => ({})} queryClient={consumerQc}>
+      <ThreadProvider url="http://x" authenticate={async () => ({})} queryClient={consumerQc}>
         <QcProbe />
-      </AcpProvider>
+      </ThreadProvider>
     )
 
     await waitFor(() => expect(captured).not.toBeNull())
@@ -139,9 +139,9 @@ describe('AcpProvider TanStack Query integration', () => {
     }
 
     render(
-      <AcpProvider url="http://x" authenticate={async () => ({})}>
+      <ThreadProvider url="http://x" authenticate={async () => ({})}>
         <QcProbe />
-      </AcpProvider>
+      </ThreadProvider>
     )
 
     await waitFor(() => expect(captured).not.toBeNull())

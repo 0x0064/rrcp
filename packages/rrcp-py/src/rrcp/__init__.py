@@ -2,18 +2,18 @@ from importlib.metadata import version as _pkg_version
 
 __version__ = _pkg_version("rrcp")
 
-from rrcp_server.analytics.collector import (
+from rrcp.analytics.collector import (
     AnalyticsEvent,
     AssistantAnalytics,
     OnAnalyticsCallback,
 )
-from rrcp_server.broadcast.protocol import Broadcaster
-from rrcp_server.broadcast.recording import RecordingBroadcaster
-from rrcp_server.broadcast.socketio import SocketIOBroadcaster
-from rrcp_server.handler.context import HandlerContext
-from rrcp_server.handler.send import HandlerSend
-from rrcp_server.handler.types import HandlerCallable
-from rrcp_server.protocol.content import (
+from rrcp.broadcast.protocol import Broadcaster
+from rrcp.broadcast.recording import RecordingBroadcaster
+from rrcp.broadcast.socketio import SocketIOBroadcaster
+from rrcp.handler.context import HandlerContext
+from rrcp.handler.send import HandlerSend
+from rrcp.handler.types import HandlerCallable
+from rrcp.protocol.content import (
     AudioPart,
     ContentPart,
     DocumentPart,
@@ -23,7 +23,7 @@ from rrcp_server.protocol.content import (
     TextPart,
     parse_content_part,
 )
-from rrcp_server.protocol.event import (
+from rrcp.protocol.event import (
     Event,
     EventDraft,
     MessageEvent,
@@ -42,30 +42,30 @@ from rrcp_server.protocol.event import (
     ToolResultEvent,
     parse_event,
 )
-from rrcp_server.protocol.identity import (
+from rrcp.protocol.identity import (
     AssistantIdentity,
     Identity,
     SystemIdentity,
     UserIdentity,
     parse_identity,
 )
-from rrcp_server.protocol.run import Run, RunError, RunStatus
-from rrcp_server.protocol.tenant import TenantScope, matches
-from rrcp_server.protocol.thread import Thread, ThreadMember, ThreadPatch
-from rrcp_server.server.acp import AcpServer
-from rrcp_server.server.auth import AuthenticateCallback, AuthorizeCallback, HandshakeData
-from rrcp_server.server.namespace import (
+from rrcp.protocol.run import Run, RunError, RunStatus
+from rrcp.protocol.tenant import TenantScope, matches
+from rrcp.protocol.thread import Thread, ThreadMember, ThreadPatch
+from rrcp.server.auth import AuthenticateCallback, AuthorizeCallback, HandshakeData
+from rrcp.server.namespace import (
     NamespaceViolation,
     derive_namespace_path,
     parse_namespace_path,
     validate_namespace_value,
 )
-from rrcp_server.store.postgres.store import PostgresThreadStore
-from rrcp_server.store.protocol import ThreadStore
-from rrcp_server.store.types import EventCursor, Page, ThreadCursor
+from rrcp.server.thread_server import ThreadServer
+from rrcp.store.postgres.store import PostgresThreadStore
+from rrcp.store.protocol import ThreadStore
+from rrcp.store.types import EventCursor, Page, ThreadCursor
 
 __all__ = [
-    "AcpServer",
+    "ThreadServer",
     "AnalyticsEvent",
     "AssistantAnalytics",
     "AssistantIdentity",

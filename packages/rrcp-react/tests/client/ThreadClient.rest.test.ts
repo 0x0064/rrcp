@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  AcpAuthError,
-  AcpClient,
-  AcpConflictError,
-  AcpHttpError,
-  AcpNotFoundError,
-} from '../../src/client/AcpClient'
+  ThreadAuthError,
+  ThreadClient,
+  ThreadConflictError,
+  ThreadHttpError,
+  ThreadNotFoundError,
+} from '../../src/client/ThreadClient'
 
 const fakeThread = {
   id: 'th_1',
@@ -22,13 +22,13 @@ function jsonResponse(body: unknown, status = 200): Response {
   })
 }
 
-describe('AcpClient REST', () => {
+describe('ThreadClient REST', () => {
   let fetchMock: ReturnType<typeof vi.fn>
-  let client: AcpClient
+  let client: ThreadClient
 
   beforeEach(() => {
     fetchMock = vi.fn()
-    client = new AcpClient({
+    client = new ThreadClient({
       url: 'http://localhost:8000',
       authenticate: async () => ({ headers: { authorization: 'Bearer xyz' } }),
       fetchImpl: fetchMock as unknown as typeof fetch,
@@ -106,44 +106,44 @@ describe('AcpClient REST', () => {
     expect(body.assistant_ids).toEqual(['a1'])
   })
 
-  it('throws AcpHttpError on non-2xx', async () => {
+  it('throws ThreadHttpError on non-2xx', async () => {
     fetchMock.mockResolvedValue(new Response('not found', { status: 404 }))
     await expect(client.getThread('th_nope')).rejects.toThrow('HTTP 404')
   })
 
-  it('throws AcpNotFoundError on 404', async () => {
+  it('throws ThreadNotFoundError on 404', async () => {
     fetchMock.mockResolvedValue(new Response('not found', { status: 404 }))
-    await expect(client.getThread('th_nope')).rejects.toBeInstanceOf(AcpNotFoundError)
+    await expect(client.getThread('th_nope')).rejects.toBeInstanceOf(ThreadNotFoundError)
     fetchMock.mockResolvedValue(new Response('not found', { status: 404 }))
-    await expect(client.getThread('th_nope')).rejects.toBeInstanceOf(AcpHttpError)
+    await expect(client.getThread('th_nope')).rejects.toBeInstanceOf(ThreadHttpError)
   })
 
-  it('throws AcpAuthError on 401 and 403', async () => {
+  it('throws ThreadAuthError on 401 and 403', async () => {
     fetchMock.mockResolvedValue(new Response('unauth', { status: 401 }))
-    await expect(client.getThread('th_1')).rejects.toBeInstanceOf(AcpAuthError)
+    await expect(client.getThread('th_1')).rejects.toBeInstanceOf(ThreadAuthError)
     fetchMock.mockResolvedValue(new Response('forbidden', { status: 403 }))
-    await expect(client.getThread('th_1')).rejects.toBeInstanceOf(AcpAuthError)
+    await expect(client.getThread('th_1')).rejects.toBeInstanceOf(ThreadAuthError)
   })
 
-  it('throws AcpConflictError on 409', async () => {
+  it('throws ThreadConflictError on 409', async () => {
     fetchMock.mockResolvedValue(new Response('conflict', { status: 409 }))
     await expect(
       client.invoke('th_1', { assistantIds: ['a1'], idempotencyKey: 'k1' })
-    ).rejects.toBeInstanceOf(AcpConflictError)
+    ).rejects.toBeInstanceOf(ThreadConflictError)
   })
 
-  it('throws the base AcpHttpError on other statuses (e.g. 500)', async () => {
+  it('throws the base ThreadHttpError on other statuses (e.g. 500)', async () => {
     fetchMock.mockResolvedValue(new Response('boom', { status: 500 }))
-    let err: AcpHttpError | null = null
+    let err: ThreadHttpError | null = null
     try {
       await client.getThread('th_1')
     } catch (e) {
-      err = e as AcpHttpError
+      err = e as ThreadHttpError
     }
-    expect(err).toBeInstanceOf(AcpHttpError)
-    expect(err).not.toBeInstanceOf(AcpNotFoundError)
-    expect(err).not.toBeInstanceOf(AcpAuthError)
-    expect(err).not.toBeInstanceOf(AcpConflictError)
+    expect(err).toBeInstanceOf(ThreadHttpError)
+    expect(err).not.toBeInstanceOf(ThreadNotFoundError)
+    expect(err).not.toBeInstanceOf(ThreadAuthError)
+    expect(err).not.toBeInstanceOf(ThreadConflictError)
     expect(err?.status).toBe(500)
   })
 

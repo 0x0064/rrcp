@@ -5,10 +5,10 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 
-from rrcp_server.protocol.identity import Identity, parse_identity
-from rrcp_server.protocol.tenant import matches
-from rrcp_server.protocol.thread import Thread, ThreadMember
-from rrcp_server.server.rest.deps import get_server, identity_tenant, resolve_identity
+from rrcp.protocol.identity import Identity, parse_identity
+from rrcp.protocol.tenant import matches
+from rrcp.protocol.thread import Thread, ThreadMember
+from rrcp.server.rest.deps import get_server, identity_tenant, resolve_identity
 
 
 class AddMemberBody(BaseModel):
@@ -41,9 +41,7 @@ def build_router() -> APIRouter:
         new_identity = parse_identity(body.identity)
         member = await server.store.add_member(thread_id, new_identity, added_by=identity, role=body.role)
         members = await server.store.list_members(thread_id)
-        await server.publish_members_updated(
-            thread_id, [m.identity for m in members], thread=thread
-        )
+        await server.publish_members_updated(thread_id, [m.identity for m in members], thread=thread)
         return member
 
     @router.delete("/{identity_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -57,9 +55,7 @@ def build_router() -> APIRouter:
         thread = await _gate(request, thread_id, identity, "member.remove")
         await server.store.remove_member(thread_id, identity_id)
         members = await server.store.list_members(thread_id)
-        await server.publish_members_updated(
-            thread_id, [m.identity for m in members], thread=thread
-        )
+        await server.publish_members_updated(thread_id, [m.identity for m in members], thread=thread)
         return Response(status_code=204)
 
     return router

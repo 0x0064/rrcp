@@ -5,10 +5,10 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from rrcp_server.protocol.identity import Identity, UserIdentity
-from rrcp_server.server.acp import AcpServer
-from rrcp_server.server.auth import HandshakeData
-from rrcp_server.store.postgres.store import PostgresThreadStore
+from rrcp.protocol.identity import Identity, UserIdentity
+from rrcp.server.auth import HandshakeData
+from rrcp.server.thread_server import ThreadServer
+from rrcp.store.postgres.store import PostgresThreadStore
 
 
 @pytest.fixture
@@ -19,10 +19,10 @@ async def setup(clean_db: asyncpg.Pool) -> tuple[AsyncClient, str]:
     async def auth(_h: HandshakeData) -> Identity:
         return alice
 
-    acp = AcpServer(store=store, authenticate=auth)
+    thread_server = ThreadServer(store=store, authenticate=auth)
     app = FastAPI()
-    app.state.acp = acp
-    app.include_router(acp.router, prefix="/acp")
+    app.state.thread_server = thread_server
+    app.include_router(thread_server.router, prefix="/acp")
     client = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
     create = await client.post("/acp/threads", json={"tenant": {"org": "A"}})

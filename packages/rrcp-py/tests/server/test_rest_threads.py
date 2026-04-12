@@ -5,20 +5,20 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from rrcp_server.protocol.identity import Identity, UserIdentity
-from rrcp_server.server.acp import AcpServer
-from rrcp_server.server.auth import HandshakeData
-from rrcp_server.store.postgres.store import PostgresThreadStore
+from rrcp.protocol.identity import Identity, UserIdentity
+from rrcp.server.auth import HandshakeData
+from rrcp.server.thread_server import ThreadServer
+from rrcp.store.postgres.store import PostgresThreadStore
 
 
 def _build_app(store: PostgresThreadStore, identity: Identity) -> FastAPI:
     async def auth(_h: HandshakeData) -> Identity:
         return identity
 
-    acp = AcpServer(store=store, authenticate=auth)
+    thread_server = ThreadServer(store=store, authenticate=auth)
     app = FastAPI()
-    app.state.acp = acp
-    app.include_router(acp.router, prefix="/acp")
+    app.state.thread_server = thread_server
+    app.include_router(thread_server.router, prefix="/acp")
     return app
 
 
@@ -102,21 +102,19 @@ async def test_create_thread_rejects_tenant_missing_namespace_keys(
     clean_db: asyncpg.Pool,
 ) -> None:
     store = PostgresThreadStore(pool=clean_db)
-    alice_id = UserIdentity(
-        id="u_alice", name="Alice", metadata={"tenant": {"org": "A"}}
-    )
+    alice_id = UserIdentity(id="u_alice", name="Alice", metadata={"tenant": {"org": "A"}})
 
     async def auth(_h: HandshakeData) -> Identity:
         return alice_id
 
-    acp = AcpServer(
+    thread_server = ThreadServer(
         store=store,
         authenticate=auth,
         namespace_keys=["org"],
     )
     app = FastAPI()
-    app.state.acp = acp
-    app.include_router(acp.router, prefix="/acp")
+    app.state.thread_server = thread_server
+    app.include_router(thread_server.router, prefix="/acp")
     transport = ASGITransport(app=app)
 
     async with AsyncClient(transport=transport, base_url="http://test") as c:
@@ -134,14 +132,14 @@ async def test_rest_rejects_identity_missing_namespace_key(
     async def auth(_h: HandshakeData) -> Identity:
         return charlie
 
-    acp = AcpServer(
+    thread_server = ThreadServer(
         store=store,
         authenticate=auth,
         namespace_keys=["org"],
     )
     app = FastAPI()
-    app.state.acp = acp
-    app.include_router(acp.router, prefix="/acp")
+    app.state.thread_server = thread_server
+    app.include_router(thread_server.router, prefix="/acp")
     transport = ASGITransport(app=app)
 
     async with AsyncClient(transport=transport, base_url="http://test") as c:

@@ -1,3 +1,3 @@
-from rrcp_server.socketio.server import AcpSocketIO
+from rrcp.socketio.server import ThreadSocketIO
 
-__all__ = ["AcpSocketIO"]
+__all__ = ["ThreadSocketIO"]

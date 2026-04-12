@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useAcpClient, useAcpStore } from './useAcpClient'
+import { useThreadClient, useThreadStore } from './useThreadClient'
 
 export type SessionStatus = 'idle' | 'joining' | 'joined' | 'error'
 
@@ -9,8 +9,8 @@ export type ThreadSession = {
 }
 
 export function useThreadSession(threadId: string | null): ThreadSession {
-  const client = useAcpClient()
-  const store = useAcpStore()
+  const client = useThreadClient()
+  const store = useThreadStore()
   const [state, setState] = useState<ThreadSession>({ status: 'idle' })
 
   useEffect(() => {

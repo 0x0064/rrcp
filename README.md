@@ -42,7 +42,7 @@ Everything else — auth, tenancy, assistant routing, LLM calls, file storage, f
 ```python
 from fastapi import FastAPI
 import asyncpg
-from rrcp_server import AcpServer, HandshakeData, PostgresThreadStore, TextPart, UserIdentity
+from rrcp_server import ThreadServer, HandshakeData, PostgresThreadStore, TextPart, UserIdentity
 
 async def authenticate(handshake: HandshakeData) -> UserIdentity | None:
     user = await lookup_user(handshake.headers.get("authorization", ""))
@@ -51,31 +51,31 @@ async def authenticate(handshake: HandshakeData) -> UserIdentity | None:
     return UserIdentity(id=user.id, name=user.name, metadata={"tenant": {"organization": user.org}})
 
 pool = await asyncpg.create_pool("postgresql://localhost/myapp")
-acp = AcpServer(store=PostgresThreadStore(pool=pool), authenticate=authenticate)
+thread_server = ThreadServer(store=PostgresThreadStore(pool=pool), authenticate=authenticate)
 
-@acp.assistant("helper")
+@thread_server.assistant("helper")
 async def helper(ctx, send):
     yield send.message(content=[TextPart(text="Hello from an assistant!")])
 
 app = FastAPI()
-app.state.acp = acp
-app.include_router(acp.router, prefix="/acp")
-asgi = acp.mount_socketio(app)
+app.state.thread_server = thread_server
+app.include_router(thread_server.router, prefix="/acp")
+asgi = thread_server.mount_socketio(app)
 ```
 
 **Client (React):**
 
 ```tsx
-import { AcpProvider, useThreadActions, useThreadEvents, useThreadSession } from '@0x0064/rrcp-react'
+import { ThreadProvider, useThreadActions, useThreadEvents, useThreadSession } from '@0x0064/rrcp-react'
 
 export function App() {
   return (
-    <AcpProvider
+    <ThreadProvider
       url="http://localhost:8000"
       authenticate={async () => ({ headers: { authorization: `Bearer ${getToken()}` } })}
     >
       <Chat threadId="th_demo" />
-    </AcpProvider>
+    </ThreadProvider>
   )
 }
 

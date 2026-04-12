@@ -1,7 +1,7 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { useSyncExternalStore } from 'react'
 import type { Thread } from '../protocol/thread'
-import { useAcpClient, useAcpStore } from './useAcpClient'
+import { useThreadClient, useThreadStore } from './useThreadClient'
 
 /**
  * Suspense-compatible thread snapshot.
@@ -29,8 +29,8 @@ import { useAcpClient, useAcpStore } from './useAcpClient'
  * without Suspense (e.g., when `threadId` can be `null`).
  */
 export function useSuspenseThread(threadId: string): Thread {
-  const client = useAcpClient()
-  const store = useAcpStore()
+  const client = useThreadClient()
+  const store = useThreadStore()
 
   const { data: initial } = useSuspenseQuery({
     queryKey: ['acp', 'thread', threadId],

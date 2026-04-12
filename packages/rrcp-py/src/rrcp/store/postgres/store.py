@@ -6,12 +6,12 @@ from typing import Any
 
 import asyncpg
 
-from rrcp_server.protocol.event import Event, parse_event
-from rrcp_server.protocol.identity import AssistantIdentity, Identity, parse_identity
-from rrcp_server.protocol.run import Run, RunError, RunStatus
-from rrcp_server.protocol.tenant import TenantScope
-from rrcp_server.protocol.thread import Thread, ThreadMember, ThreadPatch
-from rrcp_server.store.types import EventCursor, Page, ThreadCursor
+from rrcp.protocol.event import Event, parse_event
+from rrcp.protocol.identity import AssistantIdentity, Identity, parse_identity
+from rrcp.protocol.run import Run, RunError, RunStatus
+from rrcp.protocol.tenant import TenantScope
+from rrcp.protocol.thread import Thread, ThreadMember, ThreadPatch
+from rrcp.store.types import EventCursor, Page, ThreadCursor
 
 
 class PostgresThreadStore:

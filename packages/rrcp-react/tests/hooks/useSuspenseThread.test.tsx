@@ -2,9 +2,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render, waitFor } from '@testing-library/react'
 import { type ReactNode, Suspense } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import type { AcpClient } from '../../src/client/AcpClient'
+import type { ThreadClient } from '../../src/client/ThreadClient'
 import { useSuspenseThread } from '../../src/hooks/useSuspenseThread'
-import { AcpContext } from '../../src/provider/AcpContext'
+import { ThreadContext } from '../../src/provider/ThreadContext'
 import { createThreadStore } from '../../src/store/threadStore'
 
 const thread1 = {
@@ -15,12 +15,12 @@ const thread1 = {
   updatedAt: '2026-04-10T00:00:00Z',
 }
 
-function wrapper(client: AcpClient, qc: QueryClient, store = createThreadStore()) {
+function wrapper(client: ThreadClient, qc: QueryClient, store = createThreadStore()) {
   return ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={qc}>
-      <AcpContext.Provider value={{ client, store }}>
+      <ThreadContext.Provider value={{ client, store }}>
         <Suspense fallback={<div data-testid="loading">loading</div>}>{children}</Suspense>
-      </AcpContext.Provider>
+      </ThreadContext.Provider>
     </QueryClientProvider>
   )
 }
@@ -34,7 +34,7 @@ describe('useSuspenseThread', () => {
   it('suspends during initial load and resolves with the thread', async () => {
     const client = {
       getThread: vi.fn().mockResolvedValue(thread1),
-    } as unknown as AcpClient
+    } as unknown as ThreadClient
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const Wrapper = wrapper(client, qc)
 
@@ -55,7 +55,7 @@ describe('useSuspenseThread', () => {
   it('writes the fetched thread into the store so other selectors see it', async () => {
     const client = {
       getThread: vi.fn().mockResolvedValue(thread1),
-    } as unknown as AcpClient
+    } as unknown as ThreadClient
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const store = createThreadStore()
     const Wrapper = wrapper(client, qc, store)
@@ -74,7 +74,7 @@ describe('useSuspenseThread', () => {
   it('reflects live store updates after the initial Suspense resolves', async () => {
     const client = {
       getThread: vi.fn().mockResolvedValue(thread1),
-    } as unknown as AcpClient
+    } as unknown as ThreadClient
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const store = createThreadStore()
     const Wrapper = wrapper(client, qc, store)

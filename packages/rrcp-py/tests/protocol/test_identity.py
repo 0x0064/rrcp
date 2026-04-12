@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from rrcp_server.protocol.identity import (
+from rrcp.protocol.identity import (
     AssistantIdentity,
     Identity,
     SystemIdentity,

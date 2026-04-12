@@ -1,7 +1,7 @@
 import { type UseMutationResult, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { TenantScope } from '../protocol/tenant'
 import type { Thread } from '../protocol/thread'
-import { useAcpClient } from './useAcpClient'
+import { useThreadClient } from './useThreadClient'
 
 export type CreateThreadInput = {
   tenant?: TenantScope
@@ -9,7 +9,7 @@ export type CreateThreadInput = {
 }
 
 export function useCreateThread(): UseMutationResult<Thread, Error, CreateThreadInput> {
-  const client = useAcpClient()
+  const client = useThreadClient()
   const qc = useQueryClient()
   return useMutation<Thread, Error, CreateThreadInput>({
     mutationFn: (input) => client.createThread(input),

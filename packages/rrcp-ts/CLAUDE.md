@@ -93,7 +93,7 @@ Source layout (target — mirrors `rrcp-py` for cross-language symmetry):
 
 ```
 src/
-  server/        # AcpServer entrypoint, lifecycle
+  server/        # ThreadServer entrypoint, lifecycle
   protocol/      # wire types, parser, mappers
   store/         # ThreadStore interface + PostgresThreadStore
   handler/       # HandlerContext, HandlerSend, run executor

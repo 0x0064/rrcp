@@ -1,5 +1,5 @@
 import {
-  AcpProvider,
+  ThreadProvider,
   type Event,
   useThreadActions,
   useThreadEvents,
@@ -10,14 +10,14 @@ import { useState } from 'react'
 
 export function App() {
   return (
-    <AcpProvider
+    <ThreadProvider
       url="http://localhost:8000"
       authenticate={async () => ({
         headers: { authorization: 'Bearer demo-token' },
       })}
     >
       <Chat threadId="th_demo" />
-    </AcpProvider>
+    </ThreadProvider>
   )
 }
 

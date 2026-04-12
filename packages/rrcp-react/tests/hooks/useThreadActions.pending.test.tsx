@@ -1,16 +1,16 @@
 import { act, render, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import type { AcpClient } from '../../src/client/AcpClient'
+import type { ThreadClient } from '../../src/client/ThreadClient'
 import { useThreadActions } from '../../src/hooks/useThreadActions'
-import { AcpContext } from '../../src/provider/AcpContext'
+import { ThreadContext } from '../../src/provider/ThreadContext'
 import { createThreadStore } from '../../src/store/threadStore'
 
-function harness(client: AcpClient) {
+function harness(client: ThreadClient) {
   return ({ children }: { children: ReactNode }) => (
-    <AcpContext.Provider value={{ client, store: createThreadStore() }}>
+    <ThreadContext.Provider value={{ client, store: createThreadStore() }}>
       {children}
-    </AcpContext.Provider>
+    </ThreadContext.Provider>
   )
 }
 
@@ -34,7 +34,7 @@ describe('useThreadActions isPending', () => {
             resolveSend = resolve as (event: unknown) => void
           })
       ),
-    } as unknown as AcpClient
+    } as unknown as ThreadClient
     const Wrapper = harness(client)
     const states: boolean[] = []
     let latest: ReturnType<typeof useThreadActions> | null = null
@@ -94,7 +94,7 @@ describe('useThreadActions isPending', () => {
             rejectSend = reject
           })
       ),
-    } as unknown as AcpClient
+    } as unknown as ThreadClient
     const Wrapper = harness(client)
     let latest: ReturnType<typeof useThreadActions> | null = null
 
@@ -154,7 +154,7 @@ describe('useThreadActions isPending', () => {
             resolveInvoke = resolve as (value: unknown) => void
           })
       ),
-    } as unknown as AcpClient
+    } as unknown as ThreadClient
     const Wrapper = harness(client)
     let latest: ReturnType<typeof useThreadActions> | null = null
 

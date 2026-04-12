@@ -1,4 +1,4 @@
-from rrcp_server.store.protocol import ThreadStore
-from rrcp_server.store.types import EventCursor, Page, ThreadCursor
+from rrcp.store.protocol import ThreadStore
+from rrcp.store.types import EventCursor, Page, ThreadCursor
 
 __all__ = ["EventCursor", "Page", "ThreadCursor", "ThreadStore"]

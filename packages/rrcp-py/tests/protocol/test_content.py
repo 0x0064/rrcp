@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from rrcp_server.protocol.content import (
+from rrcp.protocol.content import (
     AudioPart,
     ContentPart,
     DocumentPart,

@@ -17,10 +17,11 @@ export type AuthenticatePayload = {
   auth?: Record<string, unknown>
 }
 
-export type AcpClientOptions = {
+export type ThreadClientOptions = {
   url: string
   authenticate?: () => Promise<AuthenticatePayload>
   path?: string
+  socketPath?: string
   fetchImpl?: typeof fetch
 }
 
@@ -29,29 +30,29 @@ export type Page<T> = {
   nextCursor?: { createdAt: string; id: string } | null
 }
 
-export class AcpHttpError extends Error {
+export class ThreadHttpError extends Error {
   constructor(
     readonly status: number,
     readonly body: string
   ) {
     super(`HTTP ${status}: ${body}`)
-    this.name = 'AcpHttpError'
+    this.name = 'ThreadHttpError'
   }
 }
 
 /** Thrown on HTTP 404. */
-export class AcpNotFoundError extends AcpHttpError {
+export class ThreadNotFoundError extends ThreadHttpError {
   constructor(body: string) {
     super(404, body)
-    this.name = 'AcpNotFoundError'
+    this.name = 'ThreadNotFoundError'
   }
 }
 
 /** Thrown on HTTP 401 or 403. */
-export class AcpAuthError extends AcpHttpError {
+export class ThreadAuthError extends ThreadHttpError {
   constructor(status: 401 | 403, body: string) {
     super(status, body)
-    this.name = 'AcpAuthError'
+    this.name = 'ThreadAuthError'
   }
 }
 
@@ -60,30 +61,32 @@ export class AcpAuthError extends AcpHttpError {
  * `POST /threads/:id/invocations` — same key submitted with a different
  * assistant set.
  */
-export class AcpConflictError extends AcpHttpError {
+export class ThreadConflictError extends ThreadHttpError {
   constructor(body: string) {
     super(409, body)
-    this.name = 'AcpConflictError'
+    this.name = 'ThreadConflictError'
   }
 }
 
-function httpErrorFor(status: number, body: string): AcpHttpError {
-  if (status === 404) return new AcpNotFoundError(body)
-  if (status === 401 || status === 403) return new AcpAuthError(status, body)
-  if (status === 409) return new AcpConflictError(body)
-  return new AcpHttpError(status, body)
+function httpErrorFor(status: number, body: string): ThreadHttpError {
+  if (status === 404) return new ThreadNotFoundError(body)
+  if (status === 401 || status === 403) return new ThreadAuthError(status, body)
+  if (status === 409) return new ThreadConflictError(body)
+  return new ThreadHttpError(status, body)
 }
 
-export class AcpClient {
+export class ThreadClient {
   readonly url: string
   readonly path: string
-  private readonly authenticate?: AcpClientOptions['authenticate']
+  readonly socketPath: string
+  private readonly authenticate?: ThreadClientOptions['authenticate']
   private readonly fetchImpl: typeof fetch
   private socket: Socket | null = null
 
-  constructor(opts: AcpClientOptions) {
+  constructor(opts: ThreadClientOptions) {
     this.url = opts.url.replace(/\/$/, '')
     this.path = opts.path ?? '/acp'
+    this.socketPath = opts.socketPath ?? '/acp/ws'
     this.authenticate = opts.authenticate
     this.fetchImpl = opts.fetchImpl ?? ((...args) => fetch(...args))
   }
@@ -232,6 +235,7 @@ export class AcpClient {
   async connect(): Promise<void> {
     const auth = this.authenticate ? ((await this.authenticate()).auth ?? {}) : {}
     const socket = io(this.url, {
+      path: this.socketPath,
       transports: ['websocket'],
       auth,
     })
@@ -271,7 +275,7 @@ export class AcpClient {
       error?: { code: string; message: string }
     }
     if (response.error) {
-      throw new AcpHttpError(0, `${response.error.code}: ${response.error.message}`)
+      throw new ThreadHttpError(0, `${response.error.code}: ${response.error.message}`)
     }
     return {
       threadId: response.thread_id ?? threadId,

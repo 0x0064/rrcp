@@ -1,9 +1,9 @@
 import { useSyncExternalStore } from 'react'
 import type { Thread } from '../protocol/thread'
-import { useAcpStore } from './useAcpClient'
+import { useThreadStore } from './useThreadClient'
 
 export function useThreadMetadata(threadId: string | null): Thread | null {
-  const store = useAcpStore()
+  const store = useThreadStore()
   return useSyncExternalStore(
     (cb) => store.subscribe(cb),
     () => (threadId ? (store.getState().threadMeta[threadId] ?? null) : null),

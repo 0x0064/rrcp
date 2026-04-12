@@ -4,16 +4,16 @@ from typing import TYPE_CHECKING
 
 from fastapi import HTTPException, Request
 
-from rrcp_server.server.auth import HandshakeData
-from rrcp_server.server.namespace import NamespaceViolation
+from rrcp.server.auth import HandshakeData
+from rrcp.server.namespace import NamespaceViolation
 
 if TYPE_CHECKING:
-    from rrcp_server.protocol.identity import Identity
-    from rrcp_server.server.acp import AcpServer
+    from rrcp.protocol.identity import Identity
+    from rrcp.server.thread_server import ThreadServer
 
 
-def get_server(request: Request) -> AcpServer:
-    return request.app.state.acp  # type: ignore[no-any-return]
+def get_server(request: Request) -> ThreadServer:
+    return request.app.state.thread_server  # type: ignore[no-any-return]
 
 
 async def resolve_identity(request: Request) -> Identity:

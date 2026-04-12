@@ -4,8 +4,8 @@ import secrets
 from datetime import UTC, datetime
 from typing import Any
 
-from rrcp_server.protocol.content import ContentPart
-from rrcp_server.protocol.event import (
+from rrcp.protocol.content import ContentPart
+from rrcp.protocol.event import (
     MessageEvent,
     ReasoningEvent,
     ToolCall,
@@ -13,7 +13,7 @@ from rrcp_server.protocol.event import (
     ToolResult,
     ToolResultEvent,
 )
-from rrcp_server.protocol.identity import AssistantIdentity
+from rrcp.protocol.identity import AssistantIdentity
 
 
 def _new_id() -> str:

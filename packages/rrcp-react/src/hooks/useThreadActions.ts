@@ -3,7 +3,7 @@ import type { Event, EventDraft } from '../protocol/event'
 import type { Identity } from '../protocol/identity'
 import type { Run } from '../protocol/run'
 import type { Thread, ThreadMember, ThreadPatch } from '../protocol/thread'
-import { useAcpClient } from './useAcpClient'
+import { useThreadClient } from './useThreadClient'
 
 export type UseThreadActions = {
   isPending: boolean
@@ -23,7 +23,7 @@ export type UseThreadActions = {
 }
 
 export function useThreadActions(threadId: string | null): UseThreadActions {
-  const client = useAcpClient()
+  const client = useThreadClient()
   const [isPending, startTransition] = useTransition()
 
   // Wrap an async mutation so `isPending` flips true for its duration.

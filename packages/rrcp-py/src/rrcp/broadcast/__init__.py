@@ -1,5 +1,5 @@
-from rrcp_server.broadcast.protocol import Broadcaster
-from rrcp_server.broadcast.recording import RecordingBroadcaster
-from rrcp_server.broadcast.socketio import SocketIOBroadcaster
+from rrcp.broadcast.protocol import Broadcaster
+from rrcp.broadcast.recording import RecordingBroadcaster
+from rrcp.broadcast.socketio import SocketIOBroadcaster
 
 __all__ = ["Broadcaster", "RecordingBroadcaster", "SocketIOBroadcaster"]

@@ -5,8 +5,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from rrcp_server.protocol.identity import Identity
-from rrcp_server.protocol.tenant import TenantScope
+from rrcp.protocol.identity import Identity
+from rrcp.protocol.tenant import TenantScope
 
 
 class Thread(BaseModel):

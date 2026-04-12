@@ -5,17 +5,17 @@ from typing import Any
 
 from fastapi import APIRouter
 
-from rrcp_server.analytics.collector import OnAnalyticsCallback
-from rrcp_server.broadcast.protocol import Broadcaster
-from rrcp_server.handler.executor import RunExecutor
-from rrcp_server.handler.types import HandlerCallable
-from rrcp_server.protocol.event import Event
-from rrcp_server.protocol.identity import Identity
-from rrcp_server.protocol.run import Run
-from rrcp_server.protocol.thread import Thread
-from rrcp_server.server.auth import AuthenticateCallback, AuthorizeCallback
-from rrcp_server.server.namespace import NamespaceViolation, derive_namespace_path
-from rrcp_server.store.protocol import ThreadStore
+from rrcp.analytics.collector import OnAnalyticsCallback
+from rrcp.broadcast.protocol import Broadcaster
+from rrcp.handler.executor import RunExecutor
+from rrcp.handler.types import HandlerCallable
+from rrcp.protocol.event import Event
+from rrcp.protocol.identity import Identity
+from rrcp.protocol.run import Run
+from rrcp.protocol.thread import Thread
+from rrcp.server.auth import AuthenticateCallback, AuthorizeCallback
+from rrcp.server.namespace import NamespaceViolation, derive_namespace_path
+from rrcp.store.protocol import ThreadStore
 
 
 def _validate_namespace_keys(namespace_keys: list[str] | None) -> list[str] | None:
@@ -33,7 +33,7 @@ def _validate_namespace_keys(namespace_keys: list[str] | None) -> list[str] | No
     return list(namespace_keys)
 
 
-class AcpServer:
+class ThreadServer:
     def __init__(
         self,
         *,
@@ -62,11 +62,11 @@ class AcpServer:
             handler_resolver=self.get_handler,
         )
 
-        from rrcp_server.server.rest.invocations import build_router as build_invocations
-        from rrcp_server.server.rest.members import build_router as build_members
-        from rrcp_server.server.rest.messages import build_router as build_messages
-        from rrcp_server.server.rest.runs import build_router as build_runs
-        from rrcp_server.server.rest.threads import build_router as build_threads
+        from rrcp.server.rest.invocations import build_router as build_invocations
+        from rrcp.server.rest.members import build_router as build_members
+        from rrcp.server.rest.messages import build_router as build_messages
+        from rrcp.server.rest.runs import build_router as build_runs
+        from rrcp.server.rest.threads import build_router as build_threads
 
         self.router = APIRouter()
         self.router.include_router(build_threads())
@@ -93,9 +93,7 @@ class AcpServer:
             return True
         return await self.authorize(identity, thread_id, action)
 
-    async def publish_event(
-        self, event: Event, *, thread: Thread | None = None
-    ) -> Event:
+    async def publish_event(self, event: Event, *, thread: Thread | None = None) -> Event:
         appended = await self.store.append_event(event)
         if self.broadcaster is not None:
             namespace: str | None = None
@@ -103,9 +101,7 @@ class AcpServer:
                 if thread is None:
                     thread = await self.store.get_thread(event.thread_id)
                 if thread is not None:
-                    namespace = derive_namespace_path(
-                        thread.tenant, namespace_keys=self.namespace_keys
-                    )
+                    namespace = derive_namespace_path(thread.tenant, namespace_keys=self.namespace_keys)
             await self.broadcaster.broadcast_event(appended, namespace=namespace)
         return appended
 
@@ -113,12 +109,8 @@ class AcpServer:
         if self.broadcaster is not None:
             namespace: str | None = None
             if self.namespace_keys is not None:
-                namespace = derive_namespace_path(
-                    thread.tenant, namespace_keys=self.namespace_keys
-                )
-            await self.broadcaster.broadcast_thread_updated(
-                thread, namespace=namespace
-            )
+                namespace = derive_namespace_path(thread.tenant, namespace_keys=self.namespace_keys)
+            await self.broadcaster.broadcast_thread_updated(thread, namespace=namespace)
 
     async def publish_members_updated(
         self,
@@ -133,25 +125,17 @@ class AcpServer:
                 if thread is None:
                     thread = await self.store.get_thread(thread_id)
                 if thread is not None:
-                    namespace = derive_namespace_path(
-                        thread.tenant, namespace_keys=self.namespace_keys
-                    )
-            await self.broadcaster.broadcast_members_updated(
-                thread_id, members, namespace=namespace
-            )
+                    namespace = derive_namespace_path(thread.tenant, namespace_keys=self.namespace_keys)
+            await self.broadcaster.broadcast_members_updated(thread_id, members, namespace=namespace)
 
-    async def publish_run_updated(
-        self, run: Run, *, thread: Thread | None = None
-    ) -> None:
+    async def publish_run_updated(self, run: Run, *, thread: Thread | None = None) -> None:
         if self.broadcaster is not None:
             namespace: str | None = None
             if self.namespace_keys is not None:
                 if thread is None:
                     thread = await self.store.get_thread(run.thread_id)
                 if thread is not None:
-                    namespace = derive_namespace_path(
-                        thread.tenant, namespace_keys=self.namespace_keys
-                    )
+                    namespace = derive_namespace_path(thread.tenant, namespace_keys=self.namespace_keys)
             await self.broadcaster.broadcast_run_updated(run, namespace=namespace)
 
     def namespace_for_thread(self, thread: Thread) -> str | None:
@@ -174,10 +158,10 @@ class AcpServer:
         derive_namespace_path(tenant, namespace_keys=self.namespace_keys)
 
     def mount_socketio(self, fastapi_app: Any) -> Any:
-        from rrcp_server.broadcast.socketio import SocketIOBroadcaster
-        from rrcp_server.socketio.server import AcpSocketIO
+        from rrcp.broadcast.socketio import SocketIOBroadcaster
+        from rrcp.socketio.server import ThreadSocketIO
 
-        sio_server = AcpSocketIO(self, replay_cap=self.replay_cap)
+        sio_server = ThreadSocketIO(self, replay_cap=self.replay_cap)
         self.broadcaster = SocketIOBroadcaster(sio_server.sio)
         self._socketio = sio_server
         return sio_server.asgi_app(fastapi_app)

@@ -7,31 +7,31 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from rrcp_server.protocol.content import TextPart
-from rrcp_server.protocol.identity import Identity, UserIdentity
-from rrcp_server.server.acp import AcpServer
-from rrcp_server.server.auth import HandshakeData
-from rrcp_server.store.postgres.store import PostgresThreadStore
+from rrcp.protocol.content import TextPart
+from rrcp.protocol.identity import Identity, UserIdentity
+from rrcp.server.auth import HandshakeData
+from rrcp.server.thread_server import ThreadServer
+from rrcp.store.postgres.store import PostgresThreadStore
 
 
 @pytest.fixture
-async def setup(clean_db: asyncpg.Pool) -> tuple[AcpServer, AsyncClient, str]:
+async def setup(clean_db: asyncpg.Pool) -> tuple[ThreadServer, AsyncClient, str]:
     store = PostgresThreadStore(pool=clean_db)
     alice = UserIdentity(id="u_alice", name="Alice", metadata={"tenant": {"org": "A"}})
 
     async def auth(_h: HandshakeData) -> Identity:
         return alice
 
-    acp = AcpServer(store=store, authenticate=auth, run_timeout_seconds=5)
+    thread_server = ThreadServer(store=store, authenticate=auth, run_timeout_seconds=5)
 
-    @acp.assistant("a1")
+    @thread_server.assistant("a1")
     async def helper(ctx, send):
         yield send.reasoning("considering")
         yield send.message(content=[TextPart(text="hello back")])
 
     app = FastAPI()
-    app.state.acp = acp
-    app.include_router(acp.router, prefix="/acp")
+    app.state.thread_server = thread_server
+    app.include_router(thread_server.router, prefix="/acp")
     client = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
     create = await client.post("/acp/threads", json={"tenant": {"org": "A"}})
@@ -48,13 +48,13 @@ async def setup(clean_db: asyncpg.Pool) -> tuple[AcpServer, AsyncClient, str]:
             }
         },
     )
-    return acp, client, thread_id
+    return thread_server, client, thread_id
 
 
 async def test_invoke_runs_handler_to_completion(
-    setup: tuple[AcpServer, AsyncClient, str],
+    setup: tuple[ThreadServer, AsyncClient, str],
 ) -> None:
-    acp, client, thread_id = setup
+    thread_server, client, thread_id = setup
 
     resp = await client.post(
         f"/acp/threads/{thread_id}/invocations",
@@ -65,7 +65,7 @@ async def test_invoke_runs_handler_to_completion(
     assert len(runs) == 1
     run_id = runs[0]["id"]
 
-    await acp.executor.await_run(run_id)
+    await thread_server.executor.await_run(run_id)
 
     events_resp = await client.get(f"/acp/threads/{thread_id}/events")
     types = [e["type"] for e in events_resp.json()["items"]]
@@ -73,7 +73,7 @@ async def test_invoke_runs_handler_to_completion(
 
 
 async def test_invoke_unknown_assistant_404(
-    setup: tuple[AcpServer, AsyncClient, str],
+    setup: tuple[ThreadServer, AsyncClient, str],
 ) -> None:
     _, client, thread_id = setup
     resp = await client.post(
@@ -84,11 +84,11 @@ async def test_invoke_unknown_assistant_404(
 
 
 async def test_invoke_assistant_not_member_403(
-    setup: tuple[AcpServer, AsyncClient, str],
+    setup: tuple[ThreadServer, AsyncClient, str],
 ) -> None:
-    acp, client, thread_id = setup
+    thread_server, client, thread_id = setup
 
-    @acp.assistant("a_other")
+    @thread_server.assistant("a_other")
     async def other(ctx, send):
         yield send.message(content=[TextPart(text="x")])
 
@@ -100,13 +100,13 @@ async def test_invoke_assistant_not_member_403(
 
 
 async def test_get_and_cancel_run(
-    setup: tuple[AcpServer, AsyncClient, str],
+    setup: tuple[ThreadServer, AsyncClient, str],
 ) -> None:
-    acp, client, thread_id = setup
+    thread_server, client, thread_id = setup
 
     started = asyncio.Event()
 
-    @acp.assistant("a_slow")
+    @thread_server.assistant("a_slow")
     async def slow(ctx, send):
         started.set()
         await asyncio.sleep(5)
@@ -139,22 +139,22 @@ async def test_get_and_cancel_run(
     cancel_resp = await client.delete(f"/acp/runs/{run_id}")
     assert cancel_resp.status_code == 204
 
-    await acp.executor.await_run(run_id)
+    await thread_server.executor.await_run(run_id)
     final = await client.get(f"/acp/runs/{run_id}")
     assert final.json()["status"] == "cancelled"
 
 
 async def test_invoke_idempotency(
-    setup: tuple[AcpServer, AsyncClient, str],
+    setup: tuple[ThreadServer, AsyncClient, str],
 ) -> None:
-    acp, client, thread_id = setup
+    thread_server, client, thread_id = setup
 
     r1 = await client.post(
         f"/acp/threads/{thread_id}/invocations",
         json={"assistant_ids": ["a1"], "idempotency_key": "key_x"},
     )
     run_id_1 = r1.json()["runs"][0]["id"]
-    await acp.executor.await_run(run_id_1)
+    await thread_server.executor.await_run(run_id_1)
 
     r2 = await client.post(
         f"/acp/threads/{thread_id}/invocations",

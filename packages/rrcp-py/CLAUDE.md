@@ -124,7 +124,7 @@ Source layout (target):
 
 ```
 src/rrcp/
-  server/        # AcpServer entrypoint, lifecycle
+  server/        # ThreadServer entrypoint, lifecycle
   protocol/      # Pydantic frame types, parser, mappers
   store/         # ThreadStore protocol + PostgresThreadStore
   handler/       # HandlerContext, HandlerSend, run executor

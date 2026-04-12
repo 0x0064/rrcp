@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 
-from rrcp_server.analytics.collector import AssistantAnalytics
-from rrcp_server.protocol.event import Event
-from rrcp_server.protocol.identity import AssistantIdentity, Identity
-from rrcp_server.protocol.run import Run
-from rrcp_server.protocol.thread import Thread
-from rrcp_server.store.protocol import ThreadStore
+from rrcp.analytics.collector import AssistantAnalytics
+from rrcp.protocol.event import Event
+from rrcp.protocol.identity import AssistantIdentity, Identity
+from rrcp.protocol.run import Run
+from rrcp.protocol.thread import Thread
+from rrcp.store.protocol import ThreadStore
 
 InvokeAssistantCallable = Callable[[str], Awaitable[Run]]
 

@@ -1,11 +1,11 @@
 import { useSyncExternalStore } from 'react'
 import type { Event } from '../protocol/event'
-import { useAcpStore } from './useAcpClient'
+import { useThreadStore } from './useThreadClient'
 
 const EMPTY: Event[] = []
 
 export function useThreadEvents(threadId: string | null): Event[] {
-  const store = useAcpStore()
+  const store = useThreadStore()
   return useSyncExternalStore(
     (cb) => store.subscribe(cb),
     () => (threadId ? (store.getState().events[threadId] ?? EMPTY) : EMPTY),

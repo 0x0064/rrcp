@@ -7,36 +7,36 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from rrcp_server.broadcast.recording import RecordingBroadcaster
-from rrcp_server.protocol.content import TextPart
-from rrcp_server.protocol.event import MessageEvent
-from rrcp_server.protocol.identity import Identity, UserIdentity
-from rrcp_server.protocol.thread import Thread
-from rrcp_server.server.acp import AcpServer
-from rrcp_server.server.auth import HandshakeData
-from rrcp_server.store.postgres.store import PostgresThreadStore
+from rrcp.broadcast.recording import RecordingBroadcaster
+from rrcp.protocol.content import TextPart
+from rrcp.protocol.event import MessageEvent
+from rrcp.protocol.identity import Identity, UserIdentity
+from rrcp.protocol.thread import Thread
+from rrcp.server.auth import HandshakeData
+from rrcp.server.thread_server import ThreadServer
+from rrcp.store.postgres.store import PostgresThreadStore
 
 
 @pytest.fixture
 async def setup(
     clean_db: asyncpg.Pool,
-) -> tuple[AcpServer, RecordingBroadcaster, str]:
+) -> tuple[ThreadServer, RecordingBroadcaster, str]:
     store = PostgresThreadStore(pool=clean_db)
     rec = RecordingBroadcaster()
 
     async def auth(_h: HandshakeData) -> Identity:
         return UserIdentity(id="u1", name="Alice")
 
-    acp = AcpServer(store=store, authenticate=auth, broadcaster=rec)
+    thread_server = ThreadServer(store=store, authenticate=auth, broadcaster=rec)
     now = datetime.now(UTC)
     await store.create_thread(Thread(id="th_1", tenant={}, metadata={}, created_at=now, updated_at=now))
-    return acp, rec, "th_1"
+    return thread_server, rec, "th_1"
 
 
 async def test_publish_event_calls_broadcaster(
-    setup: tuple[AcpServer, RecordingBroadcaster, str],
+    setup: tuple[ThreadServer, RecordingBroadcaster, str],
 ) -> None:
-    acp, rec, thread_id = setup
+    thread_server, rec, thread_id = setup
     event = MessageEvent(
         id="evt_1",
         thread_id=thread_id,
@@ -44,7 +44,7 @@ async def test_publish_event_calls_broadcaster(
         created_at=datetime.now(UTC),
         content=[TextPart(text="hi")],
     )
-    await acp.publish_event(event)
+    await thread_server.publish_event(event)
     assert len(rec.events) == 1
     assert rec.events[0].id == "evt_1"
 
@@ -80,10 +80,10 @@ async def test_rest_message_send_triggers_broadcast(
     async def auth(_h: HandshakeData) -> Identity:
         return alice
 
-    acp = AcpServer(store=store, authenticate=auth, broadcaster=rec)
+    thread_server = ThreadServer(store=store, authenticate=auth, broadcaster=rec)
     app = FastAPI()
-    app.state.acp = acp
-    app.include_router(acp.router, prefix="/acp")
+    app.state.thread_server = thread_server
+    app.include_router(thread_server.router, prefix="/acp")
     client = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
     create = await client.post("/acp/threads", json={"tenant": {"org": "A"}})
@@ -107,15 +107,15 @@ async def test_run_lifecycle_events_broadcast(clean_db: asyncpg.Pool) -> None:
     async def auth(_h: HandshakeData) -> Identity:
         return alice
 
-    acp = AcpServer(store=store, authenticate=auth, broadcaster=rec, run_timeout_seconds=5)
+    thread_server = ThreadServer(store=store, authenticate=auth, broadcaster=rec, run_timeout_seconds=5)
 
-    @acp.assistant("a1")
+    @thread_server.assistant("a1")
     async def helper(ctx, send):
         yield send.message(content=[TextPart(text="hello")])
 
     app = FastAPI()
-    app.state.acp = acp
-    app.include_router(acp.router, prefix="/acp")
+    app.state.thread_server = thread_server
+    app.include_router(thread_server.router, prefix="/acp")
     client = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
     create = await client.post("/acp/threads", json={"tenant": {"org": "A"}})
@@ -137,7 +137,7 @@ async def test_run_lifecycle_events_broadcast(clean_db: asyncpg.Pool) -> None:
         json={"assistant_ids": ["a1"]},
     )
     run_id = invoke.json()["runs"][0]["id"]
-    await acp.executor.await_run(run_id)
+    await thread_server.executor.await_run(run_id)
 
     types = [e.type for e in rec.events]
     assert "run.started" in types

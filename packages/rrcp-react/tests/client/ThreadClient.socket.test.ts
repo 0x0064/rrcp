@@ -15,9 +15,9 @@ vi.mock('socket.io-client', () => ({
   io: (...args: unknown[]) => mockIo(...(args as [])),
 }))
 
-import { AcpClient } from '../../src/client/AcpClient'
+import { ThreadClient } from '../../src/client/ThreadClient'
 
-describe('AcpClient socket', () => {
+describe('ThreadClient socket', () => {
   beforeEach(() => {
     mockSocket.on.mockReset()
     mockSocket.off.mockReset()
@@ -34,7 +34,7 @@ describe('AcpClient socket', () => {
         queueMicrotask(() => cb())
       }
     })
-    const client = new AcpClient({ url: 'http://localhost:8000' })
+    const client = new ThreadClient({ url: 'http://localhost:8000' })
     await client.connect()
     expect(mockIo).toHaveBeenCalledWith(
       'http://localhost:8000',
@@ -62,7 +62,7 @@ describe('AcpClient socket', () => {
       replay_truncated: false,
     })
 
-    const client = new AcpClient({ url: 'http://localhost:8000' })
+    const client = new ThreadClient({ url: 'http://localhost:8000' })
     await client.connect()
     const result = await client.joinThread('th_1', {
       createdAt: '2026-04-10T00:00:00Z',
@@ -86,7 +86,7 @@ describe('AcpClient socket', () => {
       error: { code: 'forbidden', message: 'not a member' },
     })
 
-    const client = new AcpClient({ url: 'http://localhost:8000' })
+    const client = new ThreadClient({ url: 'http://localhost:8000' })
     await client.connect()
     await expect(client.joinThread('th_1')).rejects.toThrow('forbidden')
   })
@@ -95,7 +95,7 @@ describe('AcpClient socket', () => {
     mockSocket.once.mockImplementation((event: string, cb: () => void) => {
       if (event === 'connect') queueMicrotask(() => cb())
     })
-    const client = new AcpClient({ url: 'http://localhost:8000' })
+    const client = new ThreadClient({ url: 'http://localhost:8000' })
     await client.connect()
     const handler = vi.fn()
     const off = client.on('event', handler)

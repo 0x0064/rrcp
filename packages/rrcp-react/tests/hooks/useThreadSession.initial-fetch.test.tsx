@@ -1,14 +1,14 @@
 import { render, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import type { AcpClient } from '../../src/client/AcpClient'
+import type { ThreadClient } from '../../src/client/ThreadClient'
 import { useThreadSession } from '../../src/hooks/useThreadSession'
-import { AcpContext } from '../../src/provider/AcpContext'
+import { ThreadContext } from '../../src/provider/ThreadContext'
 import { createThreadStore } from '../../src/store/threadStore'
 
-function harness(client: AcpClient, store: ReturnType<typeof createThreadStore>) {
+function harness(client: ThreadClient, store: ReturnType<typeof createThreadStore>) {
   return ({ children }: { children: ReactNode }) => (
-    <AcpContext.Provider value={{ client, store }}>{children}</AcpContext.Provider>
+    <ThreadContext.Provider value={{ client, store }}>{children}</ThreadContext.Provider>
   )
 }
 
@@ -43,7 +43,7 @@ describe('useThreadSession initial fetch', () => {
           addedBy: { role: 'user', id: 'u1', name: 'A', metadata: {} },
         },
       ]),
-    } as unknown as AcpClient
+    } as unknown as ThreadClient
 
     const store = createThreadStore()
     const Wrapper = harness(client, store)
@@ -74,7 +74,7 @@ describe('useThreadSession initial fetch', () => {
       leaveThread: vi.fn().mockResolvedValue(undefined),
       getThread: vi.fn().mockRejectedValue(new Error('boom')),
       listMembers: vi.fn().mockRejectedValue(new Error('boom')),
-    } as unknown as AcpClient
+    } as unknown as ThreadClient
 
     const store = createThreadStore()
     const Wrapper = harness(client, store)

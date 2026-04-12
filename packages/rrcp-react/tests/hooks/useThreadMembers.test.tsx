@@ -1,8 +1,8 @@
 import { act, render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import type { AcpClient } from '../../src/client/AcpClient'
+import type { ThreadClient } from '../../src/client/ThreadClient'
 import { useThreadMembers } from '../../src/hooks/useThreadMembers'
-import { AcpContext } from '../../src/provider/AcpContext'
+import { ThreadContext } from '../../src/provider/ThreadContext'
 import { createThreadStore } from '../../src/store/threadStore'
 
 function Probe() {
@@ -14,9 +14,9 @@ describe('useThreadMembers', () => {
   it('returns empty array when no members loaded', () => {
     const store = createThreadStore()
     const { getByTestId } = render(
-      <AcpContext.Provider value={{ client: {} as AcpClient, store }}>
+      <ThreadContext.Provider value={{ client: {} as ThreadClient, store }}>
         <Probe />
-      </AcpContext.Provider>
+      </ThreadContext.Provider>
     )
     expect(getByTestId('count').textContent).toBe('0')
   })
@@ -24,9 +24,9 @@ describe('useThreadMembers', () => {
   it('reflects setMembers updates', () => {
     const store = createThreadStore()
     const { getByTestId } = render(
-      <AcpContext.Provider value={{ client: {} as AcpClient, store }}>
+      <ThreadContext.Provider value={{ client: {} as ThreadClient, store }}>
         <Probe />
-      </AcpContext.Provider>
+      </ThreadContext.Provider>
     )
 
     act(() => {
@@ -54,14 +54,14 @@ describe('useThreadMembers', () => {
       return null
     }
     const { rerender } = render(
-      <AcpContext.Provider value={{ client: {} as AcpClient, store }}>
+      <ThreadContext.Provider value={{ client: {} as ThreadClient, store }}>
         <Probe2 />
-      </AcpContext.Provider>
+      </ThreadContext.Provider>
     )
     rerender(
-      <AcpContext.Provider value={{ client: {} as AcpClient, store }}>
+      <ThreadContext.Provider value={{ client: {} as ThreadClient, store }}>
         <Probe2 />
-      </AcpContext.Provider>
+      </ThreadContext.Provider>
     )
     // Identical empty-array reference across renders (prevents
     // `useSyncExternalStore` infinite-loop detection).

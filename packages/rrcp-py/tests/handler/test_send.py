@@ -1,6 +1,6 @@
-from rrcp_server.handler.send import HandlerSend
-from rrcp_server.protocol.content import TextPart
-from rrcp_server.protocol.identity import AssistantIdentity
+from rrcp.handler.send import HandlerSend
+from rrcp.protocol.content import TextPart
+from rrcp.protocol.identity import AssistantIdentity
 
 
 def _send() -> HandlerSend:

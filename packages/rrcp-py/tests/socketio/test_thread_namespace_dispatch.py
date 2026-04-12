@@ -4,7 +4,7 @@ The namespace_keys defense-in-depth feature relies on an undocumented
 internal of python-socketio 5.13+: when a namespace handler is registered
 under the wildcard `"*"`, `AsyncServer._get_namespace_handler` prepends the
 concrete namespace as the first positional argument to every `trigger_event`
-call. `AcpNamespace.trigger_event` pops that arg and caches it per-sid so
+call. `ThreadNamespace.trigger_event` pops that arg and caches it per-sid so
 handlers can look up their concrete namespace via `_concrete_namespace_for`.
 
 The upper pin `python-socketio<6` in pyproject.toml protects the major-bump
@@ -22,11 +22,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from rrcp_server.socketio.server import AcpNamespace
+from rrcp.socketio.server import ThreadNamespace
 
 
 def _stub_server(namespace_keys: list[str] | None = None) -> Any:
-    """Return a MagicMock that satisfies the attributes AcpNamespace reads."""
+    """Return a MagicMock that satisfies the attributes ThreadNamespace reads."""
     server = MagicMock()
     server.namespace_keys = namespace_keys
     return server
@@ -34,10 +34,10 @@ def _stub_server(namespace_keys: list[str] | None = None) -> Any:
 
 class TestTriggerEventWildcardDispatch:
     """In wildcard mode, python-socketio prepends the concrete namespace as
-    args[0]. AcpNamespace.trigger_event must pop it and cache it per-sid."""
+    args[0]. ThreadNamespace.trigger_event must pop it and cache it per-sid."""
 
     async def test_wildcard_caches_concrete_namespace_and_pops_arg(self) -> None:
-        ns = AcpNamespace("*", server=_stub_server(["org"]), replay_cap=100)
+        ns = ThreadNamespace("*", server=_stub_server(["org"]), replay_cap=100)
         captured: dict[str, Any] = {}
 
         async def fake_on_connect(sid: str, environ: dict[str, Any], auth: Any) -> None:
@@ -65,7 +65,7 @@ class TestTriggerEventWildcardDispatch:
         }
 
     async def test_wildcard_dispatch_propagates_return_value(self) -> None:
-        ns = AcpNamespace("*", server=_stub_server(["org"]), replay_cap=100)
+        ns = ThreadNamespace("*", server=_stub_server(["org"]), replay_cap=100)
 
         async def fake_on_thread_join(sid: str, data: dict[str, Any]) -> dict[str, Any]:
             return {"thread_id": data["thread_id"], "replayed": [], "replay_truncated": False}
@@ -87,23 +87,23 @@ class TestTriggerEventWildcardDispatch:
         }
 
     async def test_concrete_namespace_for_returns_cached_value(self) -> None:
-        ns = AcpNamespace("*", server=_stub_server(["org"]), replay_cap=100)
+        ns = ThreadNamespace("*", server=_stub_server(["org"]), replay_cap=100)
         ns._sid_namespaces["sid_abc"] = "/A/X"
         assert ns._concrete_namespace_for("sid_abc") == "/A/X"
 
     async def test_concrete_namespace_for_raises_when_missing(self) -> None:
-        ns = AcpNamespace("*", server=_stub_server(["org"]), replay_cap=100)
+        ns = ThreadNamespace("*", server=_stub_server(["org"]), replay_cap=100)
         with pytest.raises(RuntimeError, match="no concrete namespace cached"):
             ns._concrete_namespace_for("sid_unknown")
 
 
 class TestTriggerEventStaticDispatch:
     """In static mode (registered under `/`), python-socketio does NOT prepend
-    the concrete namespace. AcpNamespace.trigger_event must leave args alone
+    the concrete namespace. ThreadNamespace.trigger_event must leave args alone
     and `_concrete_namespace_for` must read from `self.namespace` directly."""
 
     async def test_static_does_not_consume_namespace_arg(self) -> None:
-        ns = AcpNamespace("/", server=_stub_server(None), replay_cap=100)
+        ns = ThreadNamespace("/", server=_stub_server(None), replay_cap=100)
         captured: dict[str, Any] = {}
 
         async def fake_on_connect(sid: str, environ: dict[str, Any], auth: Any) -> None:
@@ -128,7 +128,7 @@ class TestTriggerEventStaticDispatch:
         }
 
     async def test_static_concrete_namespace_for_returns_self_namespace(self) -> None:
-        ns = AcpNamespace("/", server=_stub_server(None), replay_cap=100)
+        ns = ThreadNamespace("/", server=_stub_server(None), replay_cap=100)
         assert ns._concrete_namespace_for("any_sid") == "/"
 
 
@@ -139,7 +139,7 @@ class TestTriggerEventEventNameTranslation:
     picks up the colon-separated events."""
 
     async def test_colon_event_maps_to_underscore_method(self) -> None:
-        ns = AcpNamespace("/", server=_stub_server(None), replay_cap=100)
+        ns = ThreadNamespace("/", server=_stub_server(None), replay_cap=100)
         calls: list[tuple[str, Any]] = []
 
         async def fake_on_thread_join(sid: str, data: dict[str, Any]) -> None:
@@ -157,7 +157,7 @@ class TestTriggerEventEventNameTranslation:
         assert [c[0] for c in calls] == ["thread_join", "message_send"]
 
     async def test_unknown_event_returns_none(self) -> None:
-        ns = AcpNamespace("/", server=_stub_server(None), replay_cap=100)
+        ns = ThreadNamespace("/", server=_stub_server(None), replay_cap=100)
         # No handler defined for "mystery:event" — trigger_event returns None.
         result = await ns.trigger_event("mystery:event", "sid_1", {})
         assert result is None
@@ -165,11 +165,11 @@ class TestTriggerEventEventNameTranslation:
 
 class TestTriggerEventDisconnectReasonFallback:
     """python-socketio 5.12+ passes an extra `reason` arg to disconnect
-    handlers. AcpNamespace.on_disconnect is a 1-arg method, so trigger_event
+    handlers. ThreadNamespace.on_disconnect is a 1-arg method, so trigger_event
     has a TypeError fallback that retries with `args[:-1]`."""
 
     async def test_disconnect_accepts_legacy_one_arg_shape(self) -> None:
-        ns = AcpNamespace("/", server=_stub_server(None), replay_cap=100)
+        ns = ThreadNamespace("/", server=_stub_server(None), replay_cap=100)
         calls: list[str] = []
 
         async def fake_on_disconnect(sid: str) -> None:
@@ -183,7 +183,7 @@ class TestTriggerEventDisconnectReasonFallback:
         assert calls == ["sid_1"]
 
     async def test_disconnect_cleans_sid_namespace_cache(self) -> None:
-        ns = AcpNamespace("*", server=_stub_server(["org"]), replay_cap=100)
+        ns = ThreadNamespace("*", server=_stub_server(["org"]), replay_cap=100)
         ns._sid_namespaces["sid_1"] = "/A"
 
         async def fake_on_disconnect(sid: str) -> None:

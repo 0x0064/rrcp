@@ -10,7 +10,7 @@ import pytest
 DEFAULT_DATABASE_URL = "postgresql://rrcp:rrcp@localhost:55432/rrcp_test"
 
 SCHEMA_SQL = (
-    pathlib.Path(__file__).resolve().parents[1] / "src" / "rrcp_server" / "store" / "postgres" / "schema.sql"
+    pathlib.Path(__file__).resolve().parents[1] / "src" / "rrcp" / "store" / "postgres" / "schema.sql"
 ).read_text()
 
 

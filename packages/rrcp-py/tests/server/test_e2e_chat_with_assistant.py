@@ -4,11 +4,11 @@ import asyncpg
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from rrcp_server.protocol.content import TextPart
-from rrcp_server.protocol.identity import Identity, UserIdentity
-from rrcp_server.server.acp import AcpServer
-from rrcp_server.server.auth import HandshakeData
-from rrcp_server.store.postgres.store import PostgresThreadStore
+from rrcp.protocol.content import TextPart
+from rrcp.protocol.identity import Identity, UserIdentity
+from rrcp.server.auth import HandshakeData
+from rrcp.server.thread_server import ThreadServer
+from rrcp.store.postgres.store import PostgresThreadStore
 
 
 async def test_full_chat_with_assistant(clean_db: asyncpg.Pool) -> None:
@@ -18,9 +18,9 @@ async def test_full_chat_with_assistant(clean_db: asyncpg.Pool) -> None:
     async def auth(_h: HandshakeData) -> Identity:
         return alice
 
-    acp = AcpServer(store=store, authenticate=auth, run_timeout_seconds=5)
+    thread_server = ThreadServer(store=store, authenticate=auth, run_timeout_seconds=5)
 
-    @acp.assistant("a1")
+    @thread_server.assistant("a1")
     async def helper(ctx, send):
         history = await ctx.events()
         last_user = next((e for e in reversed(history) if e.author.role == "user"), None)
@@ -35,8 +35,8 @@ async def test_full_chat_with_assistant(clean_db: asyncpg.Pool) -> None:
         yield send.message(content=[TextPart(text=echo)])
 
     app = FastAPI()
-    app.state.acp = acp
-    app.include_router(acp.router, prefix="/acp")
+    app.state.thread_server = thread_server
+    app.include_router(thread_server.router, prefix="/acp")
     client = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
     create = await client.post("/acp/threads", json={"tenant": {"org": "A"}})
@@ -67,7 +67,7 @@ async def test_full_chat_with_assistant(clean_db: asyncpg.Pool) -> None:
         json={"assistant_ids": ["a1"]},
     )
     run_id = invoke.json()["runs"][0]["id"]
-    await acp.executor.await_run(run_id)
+    await thread_server.executor.await_run(run_id)
 
     events = (await client.get(f"/acp/threads/{thread_id}/events")).json()["items"]
     types = [e["type"] for e in events]

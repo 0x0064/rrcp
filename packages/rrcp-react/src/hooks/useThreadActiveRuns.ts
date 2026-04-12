@@ -1,11 +1,11 @@
 import { useMemo, useSyncExternalStore } from 'react'
 import type { Run } from '../protocol/run'
-import { useAcpStore } from './useAcpClient'
+import { useThreadStore } from './useThreadClient'
 
 const EMPTY: Run[] = []
 
 export function useThreadActiveRuns(threadId: string | null): Run[] {
-  const store = useAcpStore()
+  const store = useThreadStore()
   const runs = useSyncExternalStore(
     (cb) => store.subscribe(cb),
     () => (threadId ? store.getState().activeRuns[threadId] : undefined),

@@ -5,12 +5,12 @@ from datetime import UTC, datetime, timedelta
 import asyncpg
 import pytest
 
-from rrcp_server.protocol.content import TextPart
-from rrcp_server.protocol.event import MessageEvent
-from rrcp_server.protocol.identity import UserIdentity
-from rrcp_server.protocol.thread import Thread
-from rrcp_server.store.postgres.store import PostgresThreadStore
-from rrcp_server.store.types import EventCursor
+from rrcp.protocol.content import TextPart
+from rrcp.protocol.event import MessageEvent
+from rrcp.protocol.identity import UserIdentity
+from rrcp.protocol.thread import Thread
+from rrcp.store.postgres.store import PostgresThreadStore
+from rrcp.store.types import EventCursor
 
 
 @pytest.fixture

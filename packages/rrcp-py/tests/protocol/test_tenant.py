@@ -1,4 +1,4 @@
-from rrcp_server.protocol.tenant import matches
+from rrcp.protocol.tenant import matches
 
 
 def test_subset_match_exact() -> None:

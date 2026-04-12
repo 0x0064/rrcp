@@ -12,17 +12,15 @@ import socketio
 import uvicorn
 from fastapi import FastAPI
 
-from rrcp_server.protocol.identity import Identity, UserIdentity
-from rrcp_server.server.acp import AcpServer
-from rrcp_server.server.auth import HandshakeData
-from rrcp_server.store.postgres.store import PostgresThreadStore
+from rrcp.protocol.identity import Identity, UserIdentity
+from rrcp.server.auth import HandshakeData
+from rrcp.server.thread_server import ThreadServer
+from rrcp.store.postgres.store import PostgresThreadStore
 
 
 class _Server:
     def __init__(self, app: Any) -> None:
-        config = uvicorn.Config(
-            app, host="127.0.0.1", port=0, log_level="error", lifespan="off"
-        )
+        config = uvicorn.Config(app, host="127.0.0.1", port=0, log_level="error", lifespan="off")
         self._server = uvicorn.Server(config)
         self._task: asyncio.Task[None] | None = None
 
@@ -44,13 +42,11 @@ class _Server:
                 await asyncio.wait_for(self._task, timeout=5)
 
 
-def _make_acp_with_ns(
-    store: PostgresThreadStore, identity: Identity
-) -> AcpServer:
+def _make_thread_server_with_ns(store: PostgresThreadStore, identity: Identity) -> ThreadServer:
     async def auth(_: HandshakeData) -> Identity:
         return identity
 
-    return AcpServer(
+    return ThreadServer(
         store=store,
         authenticate=auth,
         run_timeout_seconds=5,
@@ -58,10 +54,8 @@ def _make_acp_with_ns(
     )
 
 
-def _make_acp_multi_identity(
-    store: PostgresThreadStore, identities: dict[str, Identity]
-) -> AcpServer:
-    """AcpServer whose authenticate callback dispatches on the connect-time
+def _make_thread_server_multi_identity(store: PostgresThreadStore, identities: dict[str, Identity]) -> ThreadServer:
+    """ThreadServer whose authenticate callback dispatches on the connect-time
     auth payload (Socket.IO) or the `x-user` HTTP header (REST). Used by
     cross-namespace isolation tests that need more than one identity on the
     same live server."""
@@ -80,7 +74,7 @@ def _make_acp_multi_identity(
             return None
         return identities.get(user_id)
 
-    return AcpServer(
+    return ThreadServer(
         store=store,
         authenticate=auth,
         run_timeout_seconds=5,
@@ -88,34 +82,32 @@ def _make_acp_multi_identity(
     )
 
 
-def _wire(acp: AcpServer) -> Any:
+def _wire(thread_server: ThreadServer) -> Any:
     fastapi = FastAPI()
-    fastapi.state.acp = acp
-    fastapi.include_router(acp.router, prefix="/acp")
-    return acp.mount_socketio(fastapi)
+    fastapi.state.thread_server = thread_server
+    fastapi.include_router(thread_server.router, prefix="/acp")
+    return thread_server.mount_socketio(fastapi)
 
 
 @pytest.fixture
 async def live_ns_a(
     clean_db: asyncpg.Pool,
-) -> AsyncIterator[tuple[str, AcpServer]]:
+) -> AsyncIterator[tuple[str, ThreadServer]]:
     store = PostgresThreadStore(pool=clean_db)
-    alice = UserIdentity(
-        id="u_alice", name="Alice", metadata={"tenant": {"org": "A"}}
-    )
-    acp = _make_acp_with_ns(store, alice)
-    asgi = _wire(acp)
+    alice = UserIdentity(id="u_alice", name="Alice", metadata={"tenant": {"org": "A"}})
+    thread_server = _make_thread_server_with_ns(store, alice)
+    asgi = _wire(thread_server)
 
     server = _Server(asgi)
     base = await server.start()
     try:
-        yield base, acp
+        yield base, thread_server
     finally:
         await server.stop()
 
 
 async def test_connect_to_matching_namespace_succeeds(
-    live_ns_a: tuple[str, AcpServer],
+    live_ns_a: tuple[str, ThreadServer],
 ) -> None:
     base, _ = live_ns_a
     client = socketio.AsyncClient()
@@ -128,22 +120,20 @@ async def test_connect_to_wrong_namespace_rejected(clean_db: asyncpg.Pool) -> No
     store = PostgresThreadStore(pool=clean_db)
     # Identity belongs to org B, but the client will try to connect to /A
     bob = UserIdentity(id="u_bob", name="Bob", metadata={"tenant": {"org": "B"}})
-    acp = _make_acp_with_ns(store, bob)
-    asgi = _wire(acp)
+    thread_server = _make_thread_server_with_ns(store, bob)
+    asgi = _wire(thread_server)
     server = _Server(asgi)
     base = await server.start()
     try:
         client = socketio.AsyncClient()
         with pytest.raises(socketio.exceptions.ConnectionError):
-            await client.connect(
-                base, namespaces=["/A"], transports=["websocket"]
-            )
+            await client.connect(base, namespaces=["/A"], transports=["websocket"])
     finally:
         await server.stop()
 
 
 async def test_connect_to_root_rejected_when_keys_set(
-    live_ns_a: tuple[str, AcpServer],
+    live_ns_a: tuple[str, ThreadServer],
 ) -> None:
     base, _ = live_ns_a
     client = socketio.AsyncClient()
@@ -157,27 +147,21 @@ async def test_join_thread_in_matching_namespace_succeeds(
     clean_db: asyncpg.Pool,
 ) -> None:
     store = PostgresThreadStore(pool=clean_db)
-    alice = UserIdentity(
-        id="u_alice", name="Alice", metadata={"tenant": {"org": "A"}}
-    )
-    acp = _make_acp_with_ns(store, alice)
-    asgi = _wire(acp)
+    alice = UserIdentity(id="u_alice", name="Alice", metadata={"tenant": {"org": "A"}})
+    thread_server = _make_thread_server_with_ns(store, alice)
+    asgi = _wire(thread_server)
     server = _Server(asgi)
     base = await server.start()
     try:
         # Create a thread in org A via REST
         async with httpx.AsyncClient(base_url=base) as http:
-            create = await http.post(
-                "/acp/threads", json={"tenant": {"org": "A"}}
-            )
+            create = await http.post("/acp/threads", json={"tenant": {"org": "A"}})
             thread_id = create.json()["id"]
 
         # Client connects to /A and can see it
         client = socketio.AsyncClient()
         await client.connect(base, namespaces=["/A"], transports=["websocket"])
-        join = await client.call(
-            "thread:join", {"thread_id": thread_id}, namespace="/A"
-        )
+        join = await client.call("thread:join", {"thread_id": thread_id}, namespace="/A")
         assert join["thread_id"] == thread_id
         await client.disconnect()
         # The cross-namespace "another client in /B gets not_found" case is
@@ -201,14 +185,10 @@ async def test_broadcast_events_do_not_leak_across_namespaces(
     actually isolates the two namespaces at broadcast time."""
 
     store = PostgresThreadStore(pool=clean_db)
-    alice = UserIdentity(
-        id="u_alice", name="Alice", metadata={"tenant": {"org": "A"}}
-    )
-    bob = UserIdentity(
-        id="u_bob", name="Bob", metadata={"tenant": {"org": "B"}}
-    )
-    acp = _make_acp_multi_identity(store, {"alice": alice, "bob": bob})
-    asgi = _wire(acp)
+    alice = UserIdentity(id="u_alice", name="Alice", metadata={"tenant": {"org": "A"}})
+    bob = UserIdentity(id="u_bob", name="Bob", metadata={"tenant": {"org": "B"}})
+    thread_server = _make_thread_server_multi_identity(store, {"alice": alice, "bob": bob})
+    asgi = _wire(thread_server)
     server = _Server(asgi)
     base = await server.start()
     try:
@@ -258,13 +238,9 @@ async def test_broadcast_events_do_not_leak_across_namespaces(
         )
 
         # Each client joins their own thread.
-        join_a = await alice_client.call(
-            "thread:join", {"thread_id": thread_a_id}, namespace="/A"
-        )
+        join_a = await alice_client.call("thread:join", {"thread_id": thread_a_id}, namespace="/A")
         assert join_a["thread_id"] == thread_a_id
-        join_b = await bob_client.call(
-            "thread:join", {"thread_id": thread_b_id}, namespace="/B"
-        )
+        join_b = await bob_client.call("thread:join", {"thread_id": thread_b_id}, namespace="/B")
         assert join_b["thread_id"] == thread_b_id
 
         # Alice posts a message to her thread via REST.
@@ -328,11 +304,9 @@ async def test_join_thread_with_mismatched_ns_tenant_returns_not_found(
     # manually insert a thread whose tenant is `{org: B}` into the
     # store and verify that joining it over WS returns not_found, even
     # though it exists.
-    alice = UserIdentity(
-        id="u_alice", name="Alice", metadata={"tenant": {"org": "A"}}
-    )
-    acp = _make_acp_with_ns(store, alice)
-    asgi = _wire(acp)
+    alice = UserIdentity(id="u_alice", name="Alice", metadata={"tenant": {"org": "A"}})
+    thread_server = _make_thread_server_with_ns(store, alice)
+    asgi = _wire(thread_server)
     server = _Server(asgi)
     base = await server.start()
     try:
@@ -356,9 +330,7 @@ async def test_join_thread_with_mismatched_ns_tenant_returns_not_found(
 
         client = socketio.AsyncClient()
         await client.connect(base, namespaces=["/A"], transports=["websocket"])
-        result = await client.call(
-            "thread:join", {"thread_id": "th_foreign"}, namespace="/A"
-        )
+        result = await client.call("thread:join", {"thread_id": "th_foreign"}, namespace="/A")
         assert result.get("error", {}).get("code") == "not_found"
         await client.disconnect()
     finally:

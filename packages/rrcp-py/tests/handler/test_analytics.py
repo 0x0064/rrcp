@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from rrcp_server.analytics.collector import AnalyticsEvent, AssistantAnalytics
+from rrcp.analytics.collector import AnalyticsEvent, AssistantAnalytics
 
 
 async def test_track_buffers_and_flush_calls_callback() -> None:

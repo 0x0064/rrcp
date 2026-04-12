@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from rrcp_server.protocol.identity import AssistantIdentity, Identity
+from rrcp.protocol.identity import AssistantIdentity, Identity
 
 RunStatus = Literal["pending", "running", "completed", "failed", "cancelled"]
 

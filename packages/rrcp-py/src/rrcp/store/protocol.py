@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from rrcp_server.protocol.event import Event
-from rrcp_server.protocol.identity import Identity
-from rrcp_server.protocol.run import Run, RunError, RunStatus
-from rrcp_server.protocol.tenant import TenantScope
-from rrcp_server.protocol.thread import Thread, ThreadMember, ThreadPatch
-from rrcp_server.store.types import EventCursor, Page, ThreadCursor
+from rrcp.protocol.event import Event
+from rrcp.protocol.identity import Identity
+from rrcp.protocol.run import Run, RunError, RunStatus
+from rrcp.protocol.tenant import TenantScope
+from rrcp.protocol.thread import Thread, ThreadMember, ThreadPatch
+from rrcp.store.types import EventCursor, Page, ThreadCursor
 
 
 class ThreadStore(Protocol):

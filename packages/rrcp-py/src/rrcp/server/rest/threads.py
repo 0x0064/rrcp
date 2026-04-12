@@ -7,12 +7,12 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
-from rrcp_server.protocol.event import ThreadTenantChangedEvent
-from rrcp_server.protocol.identity import Identity
-from rrcp_server.protocol.tenant import TenantScope, matches
-from rrcp_server.protocol.thread import Thread, ThreadPatch
-from rrcp_server.server.rest.deps import get_server, identity_tenant, resolve_identity
-from rrcp_server.store.types import Page, ThreadCursor
+from rrcp.protocol.event import ThreadTenantChangedEvent
+from rrcp.protocol.identity import Identity
+from rrcp.protocol.tenant import TenantScope, matches
+from rrcp.protocol.thread import Thread, ThreadPatch
+from rrcp.server.rest.deps import get_server, identity_tenant, resolve_identity
+from rrcp.store.types import Page, ThreadCursor
 
 
 class CreateThreadBody(BaseModel):
@@ -48,9 +48,7 @@ def build_router() -> APIRouter:
         created = await server.store.create_thread(thread)
         await server.store.add_member(created.id, identity, added_by=identity)
         members = await server.store.list_members(created.id)
-        await server.publish_members_updated(
-            created.id, [m.identity for m in members], thread=created
-        )
+        await server.publish_members_updated(created.id, [m.identity for m in members], thread=created)
         return created
 
     @router.get("", response_model=Page[Thread])

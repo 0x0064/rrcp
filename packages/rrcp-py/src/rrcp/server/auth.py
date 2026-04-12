@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from rrcp_server.protocol.identity import Identity
+from rrcp.protocol.identity import Identity
 
 
 class HandshakeData(BaseModel):

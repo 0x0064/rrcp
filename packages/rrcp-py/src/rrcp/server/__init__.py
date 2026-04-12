@@ -1,3 +1,3 @@
-from rrcp_server.server.acp import AcpServer
+from rrcp.server.thread_server import ThreadServer
 
-__all__ = ["AcpServer"]
+__all__ = ["ThreadServer"]

@@ -97,7 +97,7 @@ Source layout (target):
 
 ```
 src/
-  client/        # AcpClient (Socket.IO + REST wrapper)
+  client/        # ThreadClient (Socket.IO + REST wrapper)
   store/         # Zustand store (events, runs, members, sessions)
   hooks/         # React hooks (useThreadSession, useThreadEvents, ...)
   protocol/      # Wire types + mappers (snake_case ↔ camelCase)

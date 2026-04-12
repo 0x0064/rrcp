@@ -1,26 +1,26 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
-import { AcpClient, type AcpClientOptions } from '../client/AcpClient'
+import { ThreadClient, type ThreadClientOptions } from '../client/ThreadClient'
 import { toEvent, toIdentity, toRun, toThread } from '../protocol/mappers'
 import { createThreadStore } from '../store/threadStore'
-import { AcpContext, type AcpContextValue } from './AcpContext'
+import { ThreadContext, type ThreadContextValue } from './ThreadContext'
 
-export type AcpProviderProps = AcpClientOptions & {
+export type ThreadProviderProps = ThreadClientOptions & {
   children: ReactNode
   queryClient?: QueryClient
   fallback?: ReactNode
   errorFallback?: ReactNode
 }
 
-export function AcpProvider(props: AcpProviderProps) {
+export function ThreadProvider(props: ThreadProviderProps) {
   const { children, queryClient: externalQc, fallback, errorFallback, ...clientOpts } = props
   const optsRef = useRef(clientOpts)
-  const [value, setValue] = useState<AcpContextValue | null>(null)
+  const [value, setValue] = useState<ThreadContextValue | null>(null)
   const [failed, setFailed] = useState(false)
   const qcRef = useRef<QueryClient>(externalQc ?? new QueryClient())
 
   useEffect(() => {
-    const client = new AcpClient(optsRef.current)
+    const client = new ThreadClient(optsRef.current)
     const store = createThreadStore()
 
     let cancelled = false
@@ -64,7 +64,7 @@ export function AcpProvider(props: AcpProviderProps) {
 
   let body: ReactNode
   if (value) {
-    body = <AcpContext.Provider value={value}>{children}</AcpContext.Provider>
+    body = <ThreadContext.Provider value={value}>{children}</ThreadContext.Provider>
   } else if (failed) {
     body = errorFallback ?? null
   } else {

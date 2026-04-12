@@ -1,11 +1,11 @@
 import { useSyncExternalStore } from 'react'
 import type { Identity } from '../protocol/identity'
-import { useAcpStore } from './useAcpClient'
+import { useThreadStore } from './useThreadClient'
 
 const EMPTY: Identity[] = []
 
 export function useThreadMembers(threadId: string | null): Identity[] {
-  const store = useAcpStore()
+  const store = useThreadStore()
   return useSyncExternalStore(
     (cb) => store.subscribe(cb),
     () => (threadId ? (store.getState().members[threadId] ?? EMPTY) : EMPTY),

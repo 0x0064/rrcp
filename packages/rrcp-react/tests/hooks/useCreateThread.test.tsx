@@ -2,17 +2,17 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import type { AcpClient } from '../../src/client/AcpClient'
+import type { ThreadClient } from '../../src/client/ThreadClient'
 import { useCreateThread } from '../../src/hooks/useCreateThread'
-import { AcpContext } from '../../src/provider/AcpContext'
+import { ThreadContext } from '../../src/provider/ThreadContext'
 import { createThreadStore } from '../../src/store/threadStore'
 
-function wrapper(client: AcpClient, qc: QueryClient) {
+function wrapper(client: ThreadClient, qc: QueryClient) {
   return ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={qc}>
-      <AcpContext.Provider value={{ client, store: createThreadStore() }}>
+      <ThreadContext.Provider value={{ client, store: createThreadStore() }}>
         {children}
-      </AcpContext.Provider>
+      </ThreadContext.Provider>
     </QueryClientProvider>
   )
 }
@@ -37,7 +37,7 @@ describe('useCreateThread', () => {
         createdAt: '2026-04-10T00:00:00Z',
         updatedAt: '2026-04-10T00:00:00Z',
       }),
-    } as unknown as AcpClient
+    } as unknown as ThreadClient
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const invalidateSpy = vi.spyOn(qc, 'invalidateQueries')
     const Wrapper = wrapper(client, qc)

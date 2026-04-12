@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import socketio
 
-from rrcp_server.protocol.event import Event
-from rrcp_server.protocol.identity import Identity
-from rrcp_server.protocol.run import Run
-from rrcp_server.protocol.thread import Thread
+from rrcp.protocol.event import Event
+from rrcp.protocol.identity import Identity
+from rrcp.protocol.run import Run
+from rrcp.protocol.thread import Thread
 
 
 def _thread_room(thread_id: str) -> str:
@@ -16,9 +16,7 @@ class SocketIOBroadcaster:
     def __init__(self, sio: socketio.AsyncServer) -> None:
         self._sio = sio
 
-    async def broadcast_event(
-        self, event: Event, *, namespace: str | None = None
-    ) -> None:
+    async def broadcast_event(self, event: Event, *, namespace: str | None = None) -> None:
         await self._sio.emit(
             "event",
             event.model_dump(mode="json", by_alias=True),
@@ -26,9 +24,7 @@ class SocketIOBroadcaster:
             namespace=namespace or "/",
         )
 
-    async def broadcast_thread_updated(
-        self, thread: Thread, *, namespace: str | None = None
-    ) -> None:
+    async def broadcast_thread_updated(self, thread: Thread, *, namespace: str | None = None) -> None:
         await self._sio.emit(
             "thread:updated",
             thread.model_dump(mode="json", by_alias=True),
@@ -53,9 +49,7 @@ class SocketIOBroadcaster:
             namespace=namespace or "/",
         )
 
-    async def broadcast_run_updated(
-        self, run: Run, *, namespace: str | None = None
-    ) -> None:
+    async def broadcast_run_updated(self, run: Run, *, namespace: str | None = None) -> None:
         await self._sio.emit(
             "run:updated",
             run.model_dump(mode="json", by_alias=True),

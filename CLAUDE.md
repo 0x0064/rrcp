@@ -36,9 +36,9 @@ rrcp/
 
 | Package | PyPI / npm name | Import |
 |---|---|---|
-| rrcp-react | `@0x0064/rrcp-react` | `import { AcpProvider } from '@0x0064/rrcp-react'` |
-| rrcp-ts | `@0x0064/rrcp` | `import { AcpServer } from '@0x0064/rrcp'` |
-| rrcp-py | `rrcp` | `from rrcp import AcpServer` |
+| rrcp-react | `@0x0064/rrcp-react` | `import { ThreadProvider } from '@0x0064/rrcp-react'` |
+| rrcp-ts | `@0x0064/rrcp` | `import { ThreadServer } from '@0x0064/rrcp'` |
+| rrcp-py | `rrcp` | `from rrcp import ThreadServer` |
 
 **Note on the Python name:** the PyPI package is `rrcp` (with hyphen), but the Python import is `rrcp_server` (with underscore). This is the standard Python convention — PyPI uses hyphens, modules use underscores. We deliberately chose a flat module name over a namespace package (`rrcp.server`) because namespace packages have footguns with mypy, editable installs, and top-level re-exports.
 

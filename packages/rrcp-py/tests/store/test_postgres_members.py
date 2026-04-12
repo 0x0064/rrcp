@@ -5,9 +5,9 @@ from datetime import UTC, datetime
 import asyncpg
 import pytest
 
-from rrcp_server.protocol.identity import AssistantIdentity, UserIdentity
-from rrcp_server.protocol.thread import Thread
-from rrcp_server.store.postgres.store import PostgresThreadStore
+from rrcp.protocol.identity import AssistantIdentity, UserIdentity
+from rrcp.protocol.thread import Thread
+from rrcp.store.postgres.store import PostgresThreadStore
 
 
 @pytest.fixture

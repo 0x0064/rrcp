@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
-from rrcp_server.protocol.identity import Identity
-from rrcp_server.protocol.run import Run
-from rrcp_server.protocol.tenant import matches
-from rrcp_server.server.rest.deps import get_server, identity_tenant, resolve_identity
+from rrcp.protocol.identity import Identity
+from rrcp.protocol.run import Run
+from rrcp.protocol.tenant import matches
+from rrcp.server.rest.deps import get_server, identity_tenant, resolve_identity
 
 
 def build_router() -> APIRouter:

@@ -6,16 +6,16 @@ from typing import TYPE_CHECKING, Any
 
 import socketio
 
-from rrcp_server.protocol.content import parse_content_part
-from rrcp_server.protocol.event import MessageEvent
-from rrcp_server.protocol.identity import AssistantIdentity, Identity
-from rrcp_server.protocol.tenant import matches
-from rrcp_server.server.auth import HandshakeData
-from rrcp_server.server.namespace import NamespaceViolation, parse_namespace_path
-from rrcp_server.store.types import EventCursor
+from rrcp.protocol.content import parse_content_part
+from rrcp.protocol.event import MessageEvent
+from rrcp.protocol.identity import AssistantIdentity, Identity
+from rrcp.protocol.tenant import matches
+from rrcp.server.auth import HandshakeData
+from rrcp.server.namespace import NamespaceViolation, parse_namespace_path
+from rrcp.store.types import EventCursor
 
 if TYPE_CHECKING:
-    from rrcp_server.server.acp import AcpServer
+    from rrcp.server.thread_server import ThreadServer
 
 
 DEFAULT_REPLAY_CAP = 500
@@ -37,7 +37,7 @@ def thread_room(thread_id: str) -> str:
 # For a static registration (e.g. `/`), no extra arg is injected, so the
 # standard `trigger_event(event, *original_args)` contract holds.
 #
-# `AcpNamespace.trigger_event` below therefore:
+# `ThreadNamespace.trigger_event` below therefore:
 #   1) Detects wildcard mode via `self.namespace == "*"` and pops the extra
 #      leading argument, stashing the concrete namespace on a per-sid dict so
 #      that handlers can look it up via `self._concrete_namespace_for(sid)`.
@@ -47,12 +47,12 @@ def thread_room(thread_id: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-class AcpNamespace(socketio.AsyncNamespace):
+class ThreadNamespace(socketio.AsyncNamespace):
     def __init__(
         self,
         namespace: str,
         *,
-        server: AcpServer,
+        server: ThreadServer,
         replay_cap: int,
     ) -> None:
         super().__init__(namespace)
@@ -115,8 +115,7 @@ class AcpNamespace(socketio.AsyncNamespace):
         ns = self._sid_namespaces.get(sid)
         if ns is None:
             raise RuntimeError(
-                f"no concrete namespace cached for sid={sid!r}; "
-                "trigger_event should have stashed it before dispatch"
+                f"no concrete namespace cached for sid={sid!r}; trigger_event should have stashed it before dispatch"
             )
         return ns
 
@@ -126,36 +125,26 @@ class AcpNamespace(socketio.AsyncNamespace):
     # `self.namespace`, which is literally "*" in wildcard mode. The sid is
     # registered under the concrete path, so we must override.
     # ------------------------------------------------------------------
-    async def save_session(
-        self, sid: str, session: dict[str, Any], namespace: str | None = None
-    ) -> None:
+    async def save_session(self, sid: str, session: dict[str, Any], namespace: str | None = None) -> None:
         ns = namespace or self._concrete_namespace_for(sid)
         await self.server.save_session(sid, session, namespace=ns)
 
-    async def get_session(
-        self, sid: str, namespace: str | None = None
-    ) -> dict[str, Any]:
+    async def get_session(self, sid: str, namespace: str | None = None) -> dict[str, Any]:
         ns = namespace or self._concrete_namespace_for(sid)
         return await self.server.get_session(sid, namespace=ns)
 
-    async def enter_room(
-        self, sid: str, room: str, namespace: str | None = None
-    ) -> None:
+    async def enter_room(self, sid: str, room: str, namespace: str | None = None) -> None:
         ns = namespace or self._concrete_namespace_for(sid)
         await self.server.enter_room(sid, room, namespace=ns)
 
-    async def leave_room(
-        self, sid: str, room: str, namespace: str | None = None
-    ) -> None:
+    async def leave_room(self, sid: str, room: str, namespace: str | None = None) -> None:
         ns = namespace or self._concrete_namespace_for(sid)
         await self.server.leave_room(sid, room, namespace=ns)
 
     # ------------------------------------------------------------------
     # Event handlers
     # ------------------------------------------------------------------
-    async def on_connect(
-        self, sid: str, environ: dict[str, Any], auth: Any = None
-    ) -> None:
+    async def on_connect(self, sid: str, environ: dict[str, Any], auth: Any = None) -> None:
         # `trigger_event` already stashed `sid -> concrete_ns` in
         # `_sid_namespaces` before dispatching us (wildcard mode only). If
         # we raise ConnectionRefusedError anywhere below, python-socketio
@@ -171,20 +160,15 @@ class AcpNamespace(socketio.AsyncNamespace):
             if ns_keys is not None:
                 concrete_ns = self._concrete_namespace_for(sid)
                 try:
-                    ns_tenant = parse_namespace_path(
-                        concrete_ns, namespace_keys=ns_keys
-                    )
+                    ns_tenant = parse_namespace_path(concrete_ns, namespace_keys=ns_keys)
                 except NamespaceViolation as exc:
-                    raise socketio.exceptions.ConnectionRefusedError(
-                        f"namespace_invalid: {exc}"
-                    ) from exc
+                    raise socketio.exceptions.ConnectionRefusedError(f"namespace_invalid: {exc}") from exc
 
                 identity_tenant = _identity_tenant(identity)
                 for key, expected in ns_tenant.items():
                     if identity_tenant.get(key) != expected:
                         raise socketio.exceptions.ConnectionRefusedError(
-                            f"namespace_mismatch: identity missing or mismatched"
-                            f" key {key!r}"
+                            f"namespace_mismatch: identity missing or mismatched key {key!r}"
                         )
                 await self.save_session(
                     sid,
@@ -203,9 +187,7 @@ class AcpNamespace(socketio.AsyncNamespace):
     async def on_disconnect(self, sid: str) -> None:
         return None
 
-    async def _check_namespace_match(
-        self, sid: str, thread_tenant: dict[str, str]
-    ) -> bool:
+    async def _check_namespace_match(self, sid: str, thread_tenant: dict[str, str]) -> bool:
         """Return True if the thread's tenant agrees with the session's
         namespace_tenant on every namespace_keys entry. Callers should treat
         a False return as `not_found` (do not leak existence)."""
@@ -244,9 +226,7 @@ class AcpNamespace(socketio.AsyncNamespace):
                 created_at=datetime.fromisoformat(since["created_at"]),
                 id=since["id"],
             )
-            page = await self._server.store.list_events(
-                thread_id, since=cursor, limit=self._replay_cap + 1
-            )
+            page = await self._server.store.list_events(thread_id, since=cursor, limit=self._replay_cap + 1)
             items = page.items
             if len(items) > self._replay_cap:
                 replay_truncated = True
@@ -303,9 +283,7 @@ class AcpNamespace(socketio.AsyncNamespace):
         await self._server.publish_event(event, thread=thread)
         return {"event": event.model_dump(mode="json", by_alias=True)}
 
-    async def on_assistant_invoke(
-        self, sid: str, data: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def on_assistant_invoke(self, sid: str, data: dict[str, Any]) -> dict[str, Any]:
         identity = await _identity(self, sid)
         thread_id = data.get("thread_id")
         assistant_ids = data.get("assistant_ids") or []
@@ -322,9 +300,7 @@ class AcpNamespace(socketio.AsyncNamespace):
             return _error("not_found", "thread not found")
         if not await self._server.store.is_member(thread_id, identity.id):
             return _error("forbidden", "not a member of this thread")
-        if not await self._server.check_authorize(
-            identity, thread_id, "assistant.invoke"
-        ):
+        if not await self._server.check_authorize(identity, thread_id, "assistant.invoke"):
             return _error("forbidden", "not authorized: assistant.invoke")
 
         members = await self._server.store.list_members(thread_id)
@@ -334,9 +310,7 @@ class AcpNamespace(socketio.AsyncNamespace):
         for assistant_id in assistant_ids:
             handler = self._server.get_handler(assistant_id)
             if handler is None:
-                return _error(
-                    "not_found", f"assistant not registered: {assistant_id}"
-                )
+                return _error("not_found", f"assistant not registered: {assistant_id}")
             member = members_by_id.get(assistant_id)
             if member is None or not isinstance(member.identity, AssistantIdentity):
                 return _error(
@@ -376,8 +350,8 @@ class AcpNamespace(socketio.AsyncNamespace):
         return {"run_id": run_id, "cancelled": True}
 
 
-class AcpSocketIO:
-    def __init__(self, server: AcpServer, replay_cap: int = DEFAULT_REPLAY_CAP) -> None:
+class ThreadSocketIO:
+    def __init__(self, server: ThreadServer, replay_cap: int = DEFAULT_REPLAY_CAP) -> None:
         self._server = server
         self._replay_cap = replay_cap
         # When namespace_keys is set, register under the wildcard "*" so
@@ -392,10 +366,9 @@ class AcpSocketIO:
             # explicitly listed (default `["/"]`) are allowed.
             namespaces="*" if wildcard else None,
         )
+        self._socketio_path = "/acp/ws"
         ns_path = "*" if wildcard else "/"
-        self._namespace = AcpNamespace(
-            ns_path, server=server, replay_cap=replay_cap
-        )
+        self._namespace = ThreadNamespace(ns_path, server=server, replay_cap=replay_cap)
         self._sio.register_namespace(self._namespace)
 
     @property
@@ -403,7 +376,7 @@ class AcpSocketIO:
         return self._sio
 
     def asgi_app(self, other_asgi_app: Any = None) -> Any:
-        return socketio.ASGIApp(self._sio, other_asgi_app)
+        return socketio.ASGIApp(self._sio, other_asgi_app, socketio_path=self._socketio_path)
 
 
 def _build_handshake(environ: dict[str, Any], auth: Any) -> HandshakeData:

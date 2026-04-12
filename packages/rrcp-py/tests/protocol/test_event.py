@@ -3,8 +3,8 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
-from rrcp_server.protocol.content import TextPart
-from rrcp_server.protocol.event import (
+from rrcp.protocol.content import TextPart
+from rrcp.protocol.event import (
     Event,
     EventDraft,
     MessageEvent,
@@ -17,7 +17,7 @@ from rrcp_server.protocol.event import (
     ToolResultEvent,
     parse_event,
 )
-from rrcp_server.protocol.identity import AssistantIdentity, UserIdentity
+from rrcp.protocol.identity import AssistantIdentity, UserIdentity
 
 
 def _now() -> datetime:

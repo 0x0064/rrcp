@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from 'react'
-import { useAcpStore } from './useAcpClient'
+import { useThreadStore } from './useThreadClient'
 
 export function useConnectionStatus() {
-  const store = useAcpStore()
+  const store = useThreadStore()
   return useSyncExternalStore(
     (cb) => store.subscribe(cb),
     () => store.getState().connectionStatus,

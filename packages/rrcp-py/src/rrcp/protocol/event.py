@@ -5,9 +5,9 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
-from rrcp_server.protocol.content import ContentPart
-from rrcp_server.protocol.identity import Identity
-from rrcp_server.protocol.tenant import TenantScope
+from rrcp.protocol.content import ContentPart
+from rrcp.protocol.identity import Identity
+from rrcp.protocol.tenant import TenantScope
 
 
 class _EventBase(BaseModel):

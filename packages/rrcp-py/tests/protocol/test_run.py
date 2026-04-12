@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
-from rrcp_server.protocol.identity import AssistantIdentity, UserIdentity
-from rrcp_server.protocol.run import Run, RunStatus
+from rrcp.protocol.identity import AssistantIdentity, UserIdentity
+from rrcp.protocol.run import Run, RunStatus
 
 
 def test_run_pending() -> None:
