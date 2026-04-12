@@ -3,6 +3,7 @@ from __future__ import annotations
 from rrcp.protocol.event import Event
 from rrcp.protocol.identity import Identity
 from rrcp.protocol.run import Run
+from rrcp.protocol.stream import StreamDeltaFrame, StreamEndFrame, StreamStartFrame
 from rrcp.protocol.thread import Thread
 
 
@@ -16,6 +17,9 @@ class RecordingBroadcaster:
         self.threads_updated_with_namespace: list[tuple[Thread, str | None]] = []
         self.members_updated_with_namespace: list[tuple[str, list[Identity], str | None]] = []
         self.runs_updated_with_namespace: list[tuple[Run, str | None]] = []
+        self.stream_starts: list[StreamStartFrame] = []
+        self.stream_deltas: list[StreamDeltaFrame] = []
+        self.stream_ends: list[StreamEndFrame] = []
 
     async def broadcast_event(self, event: Event, *, namespace: str | None = None) -> None:
         self.events.append(event)
@@ -38,3 +42,27 @@ class RecordingBroadcaster:
     async def broadcast_run_updated(self, run: Run, *, namespace: str | None = None) -> None:
         self.runs_updated.append(run)
         self.runs_updated_with_namespace.append((run, namespace))
+
+    async def broadcast_stream_start(
+        self,
+        frame: StreamStartFrame,
+        *,
+        namespace: str | None = None,
+    ) -> None:
+        self.stream_starts.append(frame)
+
+    async def broadcast_stream_delta(
+        self,
+        frame: StreamDeltaFrame,
+        *,
+        namespace: str | None = None,
+    ) -> None:
+        self.stream_deltas.append(frame)
+
+    async def broadcast_stream_end(
+        self,
+        frame: StreamEndFrame,
+        *,
+        namespace: str | None = None,
+    ) -> None:
+        self.stream_ends.append(frame)
