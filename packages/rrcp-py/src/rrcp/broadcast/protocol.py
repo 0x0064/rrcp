@@ -5,6 +5,7 @@ from typing import Protocol
 from rrcp.protocol.event import Event
 from rrcp.protocol.identity import Identity
 from rrcp.protocol.run import Run
+from rrcp.protocol.stream import StreamDeltaFrame, StreamEndFrame, StreamStartFrame
 from rrcp.protocol.thread import Thread
 
 
@@ -19,3 +20,21 @@ class Broadcaster(Protocol):
         namespace: str | None = None,
     ) -> None: ...
     async def broadcast_run_updated(self, run: Run, *, namespace: str | None = None) -> None: ...
+    async def broadcast_stream_start(
+        self,
+        frame: StreamStartFrame,
+        *,
+        namespace: str | None = None,
+    ) -> None: ...
+    async def broadcast_stream_delta(
+        self,
+        frame: StreamDeltaFrame,
+        *,
+        namespace: str | None = None,
+    ) -> None: ...
+    async def broadcast_stream_end(
+        self,
+        frame: StreamEndFrame,
+        *,
+        namespace: str | None = None,
+    ) -> None: ...
