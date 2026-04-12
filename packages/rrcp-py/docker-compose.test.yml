@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: rrcp
+      POSTGRES_PASSWORD: rrcp
+      POSTGRES_DB: rrcp_test
+    ports:
+      - "55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rrcp -d rrcp_test"]
+      interval: 1s
+      timeout: 5s
+      retries: 10

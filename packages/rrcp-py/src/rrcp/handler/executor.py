@@ -1,0 +1,248 @@
+from __future__ import annotations
+
+import asyncio
+import secrets
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Protocol
+
+import asyncpg
+
+from rrcp_server.analytics.collector import AssistantAnalytics, OnAnalyticsCallback
+from rrcp_server.handler.context import HandlerContext
+from rrcp_server.handler.send import HandlerSend
+from rrcp_server.handler.types import HandlerCallable
+from rrcp_server.protocol.event import (
+    Event,
+    RunCancelledEvent,
+    RunCompletedEvent,
+    RunFailedEvent,
+    RunStartedEvent,
+)
+from rrcp_server.protocol.identity import AssistantIdentity, Identity
+from rrcp_server.protocol.run import Run, RunError
+from rrcp_server.protocol.thread import Thread
+from rrcp_server.store.protocol import ThreadStore
+
+
+class PublishEventCallable(Protocol):
+    async def __call__(
+        self, event: Event, *, thread: Thread | None = None
+    ) -> Event: ...
+
+
+HandlerResolver = Callable[[str], HandlerCallable | None]
+
+
+class RunExecutor:
+    def __init__(
+        self,
+        store: ThreadStore,
+        on_analytics: OnAnalyticsCallback | None = None,
+        run_timeout_seconds: int = 120,
+        publish_event: PublishEventCallable | None = None,
+        handler_resolver: HandlerResolver | None = None,
+    ) -> None:
+        self._store = store
+        self._on_analytics = on_analytics
+        self._run_timeout_seconds = run_timeout_seconds
+        if publish_event is None:
+            async def _default_publish(
+                event: Event, *, thread: Thread | None = None
+            ) -> Event:
+                return await store.append_event(event)
+
+            self._publish_event: PublishEventCallable = _default_publish
+        else:
+            self._publish_event = publish_event
+        self._handler_resolver = handler_resolver
+        self._tasks: dict[str, asyncio.Task[None]] = {}
+
+    async def invoke_from_handler(
+        self,
+        thread: Thread,
+        triggered_by: Identity,
+        assistant_id: str,
+    ) -> Run:
+        if self._handler_resolver is None:
+            raise RuntimeError("handler_resolver not configured on RunExecutor")
+        handler = self._handler_resolver(assistant_id)
+        if handler is None:
+            raise ValueError(f"assistant not registered: {assistant_id}")
+        members = await self._store.list_members(thread.id)
+        member = next((m for m in members if m.identity_id == assistant_id), None)
+        if member is None or not isinstance(member.identity, AssistantIdentity):
+            raise ValueError(f"assistant not a member of this thread: {assistant_id}")
+        return await self.execute(
+            thread=thread,
+            assistant=member.identity,
+            triggered_by=triggered_by,
+            handler=handler,
+        )
+
+    async def execute(
+        self,
+        thread: Thread,
+        assistant: AssistantIdentity,
+        triggered_by: Identity,
+        handler: HandlerCallable,
+        idempotency_key: str | None = None,
+    ) -> Run:
+        if idempotency_key:
+            existing = await self._store.find_run_by_idempotency_key(thread.id, idempotency_key)
+            if existing:
+                return existing
+
+        existing_active = await self._store.find_active_run(thread.id, assistant.id)
+        if existing_active:
+            return existing_active
+
+        run = Run(
+            id=f"run_{secrets.token_hex(8)}",
+            thread_id=thread.id,
+            assistant=assistant,
+            triggered_by=triggered_by,
+            status="pending",
+            started_at=datetime.now(UTC),
+            idempotency_key=idempotency_key,
+        )
+        try:
+            run = await self._store.create_run(run)
+        except asyncpg.exceptions.UniqueViolationError:
+            existing_active = await self._store.find_active_run(thread.id, assistant.id)
+            if existing_active:
+                return existing_active
+            if idempotency_key:
+                existing = await self._store.find_run_by_idempotency_key(thread.id, idempotency_key)
+                if existing:
+                    return existing
+            raise
+
+        task = asyncio.create_task(self._drive(run, thread, assistant, handler))
+        self._tasks[run.id] = task
+        return run
+
+    async def cancel(self, run_id: str) -> None:
+        task = self._tasks.get(run_id)
+        if task is not None and not task.done():
+            task.cancel()
+
+    async def await_run(self, run_id: str) -> None:
+        task = self._tasks.get(run_id)
+        if task is None:
+            return
+        try:
+            await task
+        except (Exception, asyncio.CancelledError):
+            pass
+
+    async def _drive(
+        self,
+        run: Run,
+        thread: Thread,
+        assistant: AssistantIdentity,
+        handler: HandlerCallable,
+    ) -> None:
+        analytics = AssistantAnalytics(
+            on_analytics=self._on_analytics,
+            thread_id=thread.id,
+            run_id=run.id,
+            assistant_id=assistant.id,
+        )
+        try:
+            run = await self._store.update_run_status(run.id, "running")
+            await self._publish_event(_run_started(run, thread, assistant), thread=thread)
+
+            async def _chain_invoke(assistant_id: str) -> Run:
+                return await self.invoke_from_handler(thread, assistant, assistant_id)
+
+            ctx = HandlerContext(
+                store=self._store,
+                thread=thread,
+                run=run,
+                assistant=assistant,
+                analytics=analytics,
+                invoke_assistant=_chain_invoke,
+            )
+            send = HandlerSend(thread_id=thread.id, run_id=run.id, author=assistant)
+
+            async def _consume() -> None:
+                async for event in handler(ctx, send):
+                    await self._publish_event(event, thread=thread)
+
+            await asyncio.wait_for(_consume(), timeout=self._run_timeout_seconds)
+
+            await self._store.update_run_status(run.id, "completed")
+            await self._publish_event(_run_completed(run, thread, assistant), thread=thread)
+        except asyncio.CancelledError:
+            await self._store.update_run_status(run.id, "cancelled")
+            await self._publish_event(_run_cancelled(run, thread, assistant), thread=thread)
+            raise
+        except TimeoutError:
+            err = RunError(
+                code="timeout",
+                message=f"run exceeded {self._run_timeout_seconds}s",
+            )
+            await self._store.update_run_status(run.id, "failed", error=err)
+            await self._publish_event(_run_failed(run, thread, assistant, err), thread=thread)
+        except Exception as exc:
+            err = RunError(code="handler_error", message=str(exc))
+            await self._store.update_run_status(run.id, "failed", error=err)
+            await self._publish_event(_run_failed(run, thread, assistant, err), thread=thread)
+            raise
+        finally:
+            await analytics.flush()
+            self._tasks.pop(run.id, None)
+
+
+def _evt_id() -> str:
+    return f"evt_{secrets.token_hex(8)}"
+
+
+def _run_started(run: Run, thread: Thread, assistant: AssistantIdentity) -> RunStartedEvent:
+    return RunStartedEvent(
+        id=_evt_id(),
+        thread_id=thread.id,
+        run_id=run.id,
+        author=assistant,
+        created_at=datetime.now(UTC),
+    )
+
+
+def _run_completed(run: Run, thread: Thread, assistant: AssistantIdentity) -> RunCompletedEvent:
+    return RunCompletedEvent(
+        id=_evt_id(),
+        thread_id=thread.id,
+        run_id=run.id,
+        author=assistant,
+        created_at=datetime.now(UTC),
+    )
+
+
+def _run_cancelled(run: Run, thread: Thread, assistant: AssistantIdentity) -> RunCancelledEvent:
+    return RunCancelledEvent(
+        id=_evt_id(),
+        thread_id=thread.id,
+        run_id=run.id,
+        author=assistant,
+        created_at=datetime.now(UTC),
+    )
+
+
+def _run_failed(
+    run: Run,
+    thread: Thread,
+    assistant: AssistantIdentity,
+    err: RunError,
+) -> RunFailedEvent:
+    return RunFailedEvent.model_validate(
+        {
+            "id": _evt_id(),
+            "thread_id": thread.id,
+            "run_id": run.id,
+            "author": assistant.model_dump(mode="json"),
+            "created_at": datetime.now(UTC),
+            "type": "run.failed",
+            "error": {"code": err.code, "message": err.message},
+        }
+    )

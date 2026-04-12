@@ -1,0 +1,81 @@
+{
+  "name": "@0x0064/rrcp-react",
+  "type": "module",
+  "version": "0.1.0-alpha.0",
+  "description": "rrcp - agent communication protocol",
+  "author": "0x0064 (https://github.com/0x0064)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0x0064/rrcp.git",
+    "directory": "packages/rrcp-react"
+  },
+  "homepage": "https://github.com/0x0064/rrcp",
+  "bugs": "https://github.com/0x0064/rrcp/issues",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "rrcp",
+    "acp",
+    "assistant",
+    "agent",
+    "sdk",
+    "ai",
+    "react"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "main": "./dist/main.cjs",
+  "module": "./dist/main.js",
+  "types": "./dist/main.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/main.d.ts",
+        "default": "./dist/main.js"
+      },
+      "require": {
+        "types": "./dist/main.d.cts",
+        "default": "./dist/main.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "dev": "npm run check && npm run typecheck && npm run test",
+    "build": "tsup",
+    "format": "biome format --write .",
+    "check": "biome check .",
+    "check:fix": "biome check --fix .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.59.0",
+    "socket.io-client": "^4.8.1",
+    "zustand": "^5.0.12"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.8",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.2.14",
+    "jsdom": "^29.0.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
+  }
+}
