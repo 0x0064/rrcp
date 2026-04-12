@@ -131,3 +131,21 @@ async def test_query_event_ignores_assistant_replies() -> None:
     result = await ctx.query_event()
     assert result is not None
     assert result.id == "e1"
+
+
+async def test_query_event_uses_prefetched_events_without_hitting_store() -> None:
+    # The store has NO matching message for u_alice. If query_event used
+    # the store, it'd return None. We pass a pre-fetched events list that
+    # does contain u_alice, so query_event should walk that list and
+    # return the match — proving the store was not consulted.
+    store_events: list[Event] = [
+        _message(id="e_bob", author_id="u_bob", author_role="user", text="in the store", minutes_ago=5),
+    ]
+    prefetched: list[Event] = [
+        _message(id="e_alice", author_id="u_alice", author_role="user", text="prefetched", minutes_ago=1),
+    ]
+    ctx = _build_ctx(store_events, triggerer_id="u_alice")
+    result = await ctx.query_event(events=prefetched)
+    assert result is not None
+    assert result.id == "e_alice"
+    assert result.content[0].text == "prefetched"  # type: ignore[union-attr]

@@ -6,10 +6,11 @@ from rrcp.analytics.collector import AssistantAnalytics
 from rrcp.protocol.event import Event, MessageEvent
 from rrcp.protocol.identity import AssistantIdentity, Identity
 from rrcp.protocol.run import Run
-from rrcp.protocol.thread import Thread
+from rrcp.protocol.thread import Thread, ThreadPatch
 from rrcp.store.protocol import ThreadStore
 
 InvokeAssistantCallable = Callable[[str], Awaitable[Run]]
+UpdateThreadCallable = Callable[[Thread, ThreadPatch], Awaitable[Thread]]
 
 # Window used by query_event() when walking back through thread history.
 # Large enough that a user's question won't scroll out behind routine team
@@ -26,9 +27,11 @@ class HandlerContext:
         assistant: AssistantIdentity,
         analytics: AssistantAnalytics,
         invoke_assistant: InvokeAssistantCallable | None = None,
+        update_thread: UpdateThreadCallable | None = None,
     ) -> None:
         self._store = store
         self._invoke_assistant = invoke_assistant
+        self._update_thread = update_thread
         self.thread = thread
         self.run = run
         self.assistant = assistant
@@ -47,7 +50,36 @@ class HandlerContext:
             raise RuntimeError("ctx.invoke is not available: no handler_resolver configured")
         return await self._invoke_assistant(assistant_id)
 
-    async def query_event(self) -> MessageEvent | None:
+    async def update_thread(self, patch: ThreadPatch) -> Thread:
+        """Apply a patch to the current thread atomically from within a handler.
+
+        Writes to the store, publishes a ``thread.tenant_changed`` event if
+        the tenant changed, and broadcasts the updated thread over the
+        configured broadcaster (so connected clients see the change the
+        same way they would if a user had PATCHed the thread via REST).
+
+        The ``self.thread`` attribute is refreshed in place with the
+        returned value, so subsequent reads like ``ctx.thread.metadata``
+        reflect the update without the handler having to juggle the
+        return value.
+
+        No authorize check is performed. The handler is already running
+        server-side with implicit trust — the code that calls this method
+        is code you shipped, not user input. Consumers that need to
+        restrict what a handler can change should enforce the rule in
+        the handler body itself.
+
+        Raises ``RuntimeError`` if the executor was constructed without
+        a ``publish_thread_updated`` callback (i.e., a test harness or
+        a server that isn't broadcasting thread changes).
+        """
+        if self._update_thread is None:
+            raise RuntimeError("ctx.update_thread is not available: no update_thread callable configured")
+        updated = await self._update_thread(self.thread, patch)
+        self.thread = updated
+        return updated
+
+    async def query_event(self, events: list[Event] | None = None) -> MessageEvent | None:
         """Return the message event that most likely triggered this run.
 
         Walks thread history backwards from the most recent event and returns
@@ -63,12 +95,20 @@ class HandlerContext:
         because the field does not exist yet — callers that need this
         today can filter on ``event.metadata`` at the consumer level.
 
+        :param events: Optional pre-fetched events. If provided, the
+            method walks this list instead of calling the store. Use this
+            when your handler already needs the event history for other
+            purposes (history building, command routing) to avoid a
+            redundant round-trip. The list should be ordered oldest to
+            newest, same as :meth:`events` returns.
+
         Returns None if no matching message is found within the lookback
         window (``_QUERY_LOOKBACK``). Typical cause: the run was invoked
         without a preceding user message, or the triggering message has
         scrolled out behind a large volume of intervening events.
         """
-        events = await self.events(limit=_QUERY_LOOKBACK)
+        if events is None:
+            events = await self.events(limit=_QUERY_LOOKBACK)
         triggerer_id = self.run.triggered_by.id
         my_id = self.assistant.id
 
