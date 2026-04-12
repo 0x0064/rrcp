@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import secrets
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Protocol
 
@@ -11,6 +11,7 @@ import asyncpg
 from rrcp.analytics.collector import AssistantAnalytics, OnAnalyticsCallback
 from rrcp.handler.context import HandlerContext
 from rrcp.handler.send import HandlerSend
+from rrcp.handler.stream import StreamSink
 from rrcp.handler.types import HandlerCallable
 from rrcp.protocol.event import (
     Event,
@@ -18,10 +19,11 @@ from rrcp.protocol.event import (
     RunCompletedEvent,
     RunFailedEvent,
     RunStartedEvent,
+    ThreadTenantChangedEvent,
 )
 from rrcp.protocol.identity import AssistantIdentity, Identity
 from rrcp.protocol.run import Run, RunError
-from rrcp.protocol.thread import Thread
+from rrcp.protocol.thread import Thread, ThreadPatch
 from rrcp.store.protocol import ThreadStore
 
 
@@ -29,7 +31,9 @@ class PublishEventCallable(Protocol):
     async def __call__(self, event: Event, *, thread: Thread | None = None) -> Event: ...
 
 
+PublishThreadUpdatedCallable = Callable[[Thread], Awaitable[None]]
 HandlerResolver = Callable[[str], HandlerCallable | None]
+StreamSinkFactory = Callable[[Thread], StreamSink]
 
 
 class RunExecutor:
@@ -39,7 +43,9 @@ class RunExecutor:
         on_analytics: OnAnalyticsCallback | None = None,
         run_timeout_seconds: int = 120,
         publish_event: PublishEventCallable | None = None,
+        publish_thread_updated: PublishThreadUpdatedCallable | None = None,
         handler_resolver: HandlerResolver | None = None,
+        stream_sink_factory: StreamSinkFactory | None = None,
     ) -> None:
         self._store = store
         self._on_analytics = on_analytics
@@ -52,7 +58,9 @@ class RunExecutor:
             self._publish_event: PublishEventCallable = _default_publish
         else:
             self._publish_event = publish_event
+        self._publish_thread_updated = publish_thread_updated
         self._handler_resolver = handler_resolver
+        self._stream_sink_factory = stream_sink_factory
         self._tasks: dict[str, asyncio.Task[None]] = {}
 
     async def invoke_from_handler(
@@ -153,6 +161,29 @@ class RunExecutor:
             async def _chain_invoke(assistant_id: str) -> Run:
                 return await self.invoke_from_handler(thread, assistant, assistant_id)
 
+            async def _update_thread_helper(current_thread: Thread, patch: ThreadPatch) -> Thread:
+                # Match the REST patch-thread behavior: write the patch,
+                # publish a tenant_changed event if tenant changed, then
+                # broadcast the updated thread. No authorize check —
+                # handlers are trusted server-side code.
+                updated = await self._store.update_thread(current_thread.id, patch)
+                if patch.tenant is not None and patch.tenant != current_thread.tenant:
+                    tenant_event = ThreadTenantChangedEvent.model_validate(
+                        {
+                            "id": f"evt_{secrets.token_hex(8)}",
+                            "thread_id": current_thread.id,
+                            "author": assistant.model_dump(mode="json"),
+                            "created_at": datetime.now(UTC),
+                            "type": "thread.tenant_changed",
+                            "from": current_thread.tenant,
+                            "to": patch.tenant,
+                        }
+                    )
+                    await self._publish_event(tenant_event, thread=updated)
+                if self._publish_thread_updated is not None:
+                    await self._publish_thread_updated(updated)
+                return updated
+
             ctx = HandlerContext(
                 store=self._store,
                 thread=thread,
@@ -160,8 +191,15 @@ class RunExecutor:
                 assistant=assistant,
                 analytics=analytics,
                 invoke_assistant=_chain_invoke,
+                update_thread=_update_thread_helper,
             )
-            send = HandlerSend(thread_id=thread.id, run_id=run.id, author=assistant)
+            stream_sink = self._stream_sink_factory(thread) if self._stream_sink_factory is not None else None
+            send = HandlerSend(
+                thread_id=thread.id,
+                run_id=run.id,
+                author=assistant,
+                stream_sink=stream_sink,
+            )
 
             async def _consume() -> None:
                 async for event in handler(ctx, send):

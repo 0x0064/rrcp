@@ -33,7 +33,9 @@ Everything else — auth, tenancy, assistant routing, LLM calls, file storage, f
 
 **Business-agnostic.** The SDK never inspects credentials, never decides who can do what, and never owns user/assistant data shapes beyond `{ id, name, metadata }`. Authentication, authorization, and tenancy semantics flow through consumer-provided callbacks.
 
-**Deliberately small.** No streaming, no MCP client, no A2A, no settings broadcaster, no knowledge sources, no built-in form rendering, no built-in blob storage. If you need these, you bring them.
+**Deliberately small.** No MCP client, no A2A, no settings broadcaster, no knowledge sources, no built-in form rendering, no built-in blob storage. If you need these, you bring them.
+
+**Streaming is first-class but ephemeral.** Handlers can stream `message` and `reasoning` events via an async context manager. Deltas ride dedicated Socket.IO channels and are never persisted — only the final event lands in the log, so replay and `thread:join` stay one-row-per-message regardless of stream length.
 
 ## 5-minute example
 

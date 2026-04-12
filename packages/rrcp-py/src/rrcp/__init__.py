@@ -12,6 +12,7 @@ from rrcp.broadcast.recording import RecordingBroadcaster
 from rrcp.broadcast.socketio import SocketIOBroadcaster
 from rrcp.handler.context import HandlerContext
 from rrcp.handler.send import HandlerSend
+from rrcp.handler.stream import Stream, StreamSink
 from rrcp.handler.types import HandlerCallable
 from rrcp.protocol.content import (
     AudioPart,
@@ -50,6 +51,13 @@ from rrcp.protocol.identity import (
     parse_identity,
 )
 from rrcp.protocol.run import Run, RunError, RunStatus
+from rrcp.protocol.stream import (
+    StreamDeltaFrame,
+    StreamEndFrame,
+    StreamError,
+    StreamStartFrame,
+    StreamTargetType,
+)
 from rrcp.protocol.tenant import TenantScope, matches
 from rrcp.protocol.thread import Thread, ThreadMember, ThreadPatch
 from rrcp.server.auth import AuthenticateCallback, AuthorizeCallback, HandshakeData
@@ -101,6 +109,13 @@ __all__ = [
     "RunStartedEvent",
     "RunStatus",
     "SocketIOBroadcaster",
+    "Stream",
+    "StreamDeltaFrame",
+    "StreamEndFrame",
+    "StreamError",
+    "StreamSink",
+    "StreamStartFrame",
+    "StreamTargetType",
     "SystemIdentity",
     "TenantScope",
     "TextPart",

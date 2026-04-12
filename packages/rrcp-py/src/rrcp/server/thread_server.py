@@ -8,10 +8,12 @@ from fastapi import APIRouter
 from rrcp.analytics.collector import OnAnalyticsCallback
 from rrcp.broadcast.protocol import Broadcaster
 from rrcp.handler.executor import RunExecutor
+from rrcp.handler.stream import StreamSink
 from rrcp.handler.types import HandlerCallable
 from rrcp.protocol.event import Event
 from rrcp.protocol.identity import Identity
 from rrcp.protocol.run import Run
+from rrcp.protocol.stream import StreamDeltaFrame, StreamEndFrame, StreamStartFrame
 from rrcp.protocol.thread import Thread
 from rrcp.server.auth import AuthenticateCallback, AuthorizeCallback
 from rrcp.server.namespace import NamespaceViolation, derive_namespace_path
@@ -59,7 +61,9 @@ class ThreadServer:
             on_analytics=on_analytics,
             run_timeout_seconds=run_timeout_seconds,
             publish_event=self.publish_event,
+            publish_thread_updated=self.publish_thread_updated,
             handler_resolver=self.get_handler,
+            stream_sink_factory=self._make_stream_sink,
         )
 
         from rrcp.server.rest.invocations import build_router as build_invocations
@@ -138,6 +142,27 @@ class ThreadServer:
                     namespace = derive_namespace_path(thread.tenant, namespace_keys=self.namespace_keys)
             await self.broadcaster.broadcast_run_updated(run, namespace=namespace)
 
+    async def broadcast_stream_start(self, frame: StreamStartFrame, *, thread: Thread) -> None:
+        if self.broadcaster is None:
+            return
+        namespace = self.namespace_for_thread(thread)
+        await self.broadcaster.broadcast_stream_start(frame, namespace=namespace)
+
+    async def broadcast_stream_delta(self, frame: StreamDeltaFrame, *, thread: Thread) -> None:
+        if self.broadcaster is None:
+            return
+        namespace = self.namespace_for_thread(thread)
+        await self.broadcaster.broadcast_stream_delta(frame, namespace=namespace)
+
+    async def broadcast_stream_end(self, frame: StreamEndFrame, *, thread: Thread) -> None:
+        if self.broadcaster is None:
+            return
+        namespace = self.namespace_for_thread(thread)
+        await self.broadcaster.broadcast_stream_end(frame, namespace=namespace)
+
+    def _make_stream_sink(self, thread: Thread) -> StreamSink:
+        return _BoundStreamSink(self, thread)
+
     def namespace_for_thread(self, thread: Thread) -> str | None:
         if self.namespace_keys is None:
             return None
@@ -165,3 +190,21 @@ class ThreadServer:
         self.broadcaster = SocketIOBroadcaster(sio_server.sio)
         self._socketio = sio_server
         return sio_server.asgi_app(fastapi_app)
+
+
+class _BoundStreamSink:
+    def __init__(self, server: ThreadServer, thread: Thread) -> None:
+        self._server = server
+        self._thread = thread
+
+    async def start(self, frame: StreamStartFrame) -> None:
+        await self._server.broadcast_stream_start(frame, thread=self._thread)
+
+    async def delta(self, frame: StreamDeltaFrame) -> None:
+        await self._server.broadcast_stream_delta(frame, thread=self._thread)
+
+    async def end(self, frame: StreamEndFrame) -> None:
+        await self._server.broadcast_stream_end(frame, thread=self._thread)
+
+    async def publish_event(self, event: Event) -> Event:
+        return await self._server.publish_event(event, thread=self._thread)
