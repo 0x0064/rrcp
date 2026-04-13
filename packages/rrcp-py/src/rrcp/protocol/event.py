@@ -20,6 +20,7 @@ class _EventBase(BaseModel):
     created_at: datetime
     metadata: dict[str, Any] = Field(default_factory=dict)
     client_id: str | None = None
+    recipients: list[str] | None = None
 
 
 class ToolCall(BaseModel):
@@ -140,3 +141,4 @@ class EventDraft(BaseModel):
     client_id: str
     content: list[ContentPart] | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+    recipients: list[str] | None = None
