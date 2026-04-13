@@ -10,14 +10,17 @@ from rrcp.broadcast.protocol import Broadcaster
 from rrcp.handler.executor import RunExecutor
 from rrcp.handler.stream import StreamSink
 from rrcp.handler.types import HandlerCallable
-from rrcp.protocol.event import Event
-from rrcp.protocol.identity import Identity
+from rrcp.protocol.event import Event, MessageEvent
+from rrcp.protocol.identity import AssistantIdentity, Identity
+from rrcp.protocol.recipients import RecipientNotMemberError, normalize_recipients
 from rrcp.protocol.run import Run
 from rrcp.protocol.stream import StreamDeltaFrame, StreamEndFrame, StreamStartFrame
-from rrcp.protocol.thread import Thread
+from rrcp.protocol.thread import Thread, ThreadMember
 from rrcp.server.auth import AuthenticateCallback, AuthorizeCallback
 from rrcp.server.namespace import NamespaceViolation, derive_namespace_path
 from rrcp.store.protocol import ThreadStore
+
+MAX_AUTO_INVOKE_CHAIN_DEPTH = 8
 
 
 def _validate_namespace_keys(namespace_keys: list[str] | None) -> list[str] | None:
@@ -112,12 +115,31 @@ class ThreadServer:
     def get_handler(self, assistant_id: str) -> HandlerCallable | None:
         return self._handlers.get(assistant_id)
 
-    async def check_authorize(self, identity: Identity, thread_id: str, action: str) -> bool:
+    async def check_authorize(
+        self,
+        identity: Identity,
+        thread_id: str,
+        action: str,
+        *,
+        target_id: str | None = None,
+    ) -> bool:
         if self.authorize is None:
             return True
-        return await self.authorize(identity, thread_id, action)
+        return await self.authorize(identity, thread_id, action, target_id=target_id)
 
     async def publish_event(self, event: Event, *, thread: Thread | None = None) -> Event:
+        members: list[ThreadMember] | None = None
+        if event.recipients is not None:
+            normalized = normalize_recipients(event.recipients, author_id=event.author.id)
+            if normalized != event.recipients:
+                event = event.model_copy(update={"recipients": normalized})
+            if normalized:
+                members = await self.store.list_members(event.thread_id)
+                member_ids = {m.identity_id for m in members}
+                for rid in normalized:
+                    if rid not in member_ids:
+                        raise RecipientNotMemberError(rid)
+
         appended = await self.store.append_event(event)
         if self.broadcaster is not None:
             namespace: str | None = None
@@ -127,7 +149,63 @@ class ThreadServer:
                 if thread is not None:
                     namespace = derive_namespace_path(thread.tenant, namespace_keys=self.namespace_keys)
             await self.broadcaster.broadcast_event(appended, namespace=namespace)
+
+        if (
+            self.auto_invoke_recipients
+            and isinstance(appended, MessageEvent)
+            and appended.recipients
+        ):
+            if thread is None:
+                thread = await self.store.get_thread(appended.thread_id)
+            if thread is not None:
+                if members is None:
+                    members = await self.store.list_members(appended.thread_id)
+                await self._auto_invoke_recipients(
+                    event=appended,
+                    members=members,
+                    thread=thread,
+                )
+
         return appended
+
+    async def _auto_invoke_recipients(
+        self,
+        *,
+        event: MessageEvent,
+        members: list[ThreadMember],
+        thread: Thread,
+    ) -> None:
+        if not event.recipients:
+            return
+
+        parent_depth = 0
+        if event.run_id is not None:
+            parent_depth = self.executor.chain_depth_for(event.run_id)
+            if parent_depth >= MAX_AUTO_INVOKE_CHAIN_DEPTH:
+                return
+
+        members_by_id = {m.identity_id: m for m in members}
+        for assistant_id in event.recipients:
+            handler = self.get_handler(assistant_id)
+            if handler is None:
+                continue
+            if not await self.check_authorize(
+                event.author,
+                thread.id,
+                "assistant.invoke",
+                target_id=assistant_id,
+            ):
+                continue
+            member = members_by_id.get(assistant_id)
+            if member is None or not isinstance(member.identity, AssistantIdentity):
+                continue
+            await self.executor.execute(
+                thread=thread,
+                assistant=member.identity,
+                triggered_by=event.author,
+                handler=handler,
+                chain_depth=parent_depth + 1,
+            )
 
     async def publish_thread_updated(self, thread: Thread) -> None:
         if self.broadcaster is not None:

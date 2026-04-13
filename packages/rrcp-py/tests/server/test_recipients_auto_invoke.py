@@ -131,6 +131,264 @@ async def test_recipient_not_member_returns_400(
     assert "recipient_not_member" in response.json()["detail"]
 
 
+async def _drain_tasks(server: ThreadServer) -> None:
+    while server.executor._tasks:
+        for task in list(server.executor._tasks.values()):
+            try:
+                await task
+            except Exception:
+                pass
+
+
+async def test_handler_yielded_event_strips_author_from_recipients(
+    clean_db: asyncpg.Pool,
+) -> None:
+    store = PostgresThreadStore(pool=clean_db)
+    alice = UserIdentity(id="u_alice", name="Alice", metadata={"tenant": {"org": "A"}})
+
+    async def auth(_h: HandshakeData) -> Identity:
+        return alice
+
+    server = ThreadServer(store=store, authenticate=auth, run_timeout_seconds=5)
+
+    @server.assistant("specialist")
+    async def specialist(ctx, send):
+        yield send.message(
+            content=[TextPart(text="self-addressed")],
+            recipients=["specialist", "u_alice"],
+        )
+
+    app = FastAPI()
+    app.state.thread_server = server
+    app.include_router(server.router, prefix="/acp")
+    client = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+
+    create = await client.post("/acp/threads", json={"tenant": {"org": "A"}})
+    thread_id = create.json()["id"]
+    await client.post(
+        f"/acp/threads/{thread_id}/members",
+        json={
+            "identity": {
+                "role": "assistant",
+                "id": "specialist",
+                "name": "Specialist",
+                "metadata": {},
+            }
+        },
+    )
+    await client.post(
+        f"/acp/threads/{thread_id}/messages",
+        json={
+            "client_id": "c_1",
+            "content": [{"type": "text", "text": "hi"}],
+            "recipients": ["specialist"],
+        },
+    )
+    await _drain_tasks(server)
+
+    events = (await client.get(f"/acp/threads/{thread_id}/events")).json()["items"]
+    assistant_msgs = [
+        e for e in events if e["type"] == "message" and e["author"]["id"] == "specialist"
+    ]
+    assert len(assistant_msgs) == 1
+    assert assistant_msgs[0]["recipients"] == ["u_alice"]
+
+
+async def test_assistant_to_assistant_chain_auto_invokes(
+    clean_db: asyncpg.Pool,
+) -> None:
+    store = PostgresThreadStore(pool=clean_db)
+    alice = UserIdentity(id="u_alice", name="Alice", metadata={"tenant": {"org": "A"}})
+
+    async def auth(_h: HandshakeData) -> Identity:
+        return alice
+
+    server = ThreadServer(store=store, authenticate=auth, run_timeout_seconds=5)
+    ran_a: list[str] = []
+    ran_b: list[str] = []
+
+    @server.assistant("assistant_a")
+    async def assistant_a(ctx, send):
+        ran_a.append(ctx.run.id)
+        yield send.message(
+            content=[TextPart(text="A delegating to B")],
+            recipients=["assistant_b"],
+        )
+
+    @server.assistant("assistant_b")
+    async def assistant_b(ctx, send):
+        ran_b.append(ctx.run.id)
+        yield send.message(content=[TextPart(text="B answering")])
+
+    app = FastAPI()
+    app.state.thread_server = server
+    app.include_router(server.router, prefix="/acp")
+    client = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+
+    create = await client.post("/acp/threads", json={"tenant": {"org": "A"}})
+    thread_id = create.json()["id"]
+    for aid, name in [("assistant_a", "A"), ("assistant_b", "B")]:
+        await client.post(
+            f"/acp/threads/{thread_id}/members",
+            json={
+                "identity": {
+                    "role": "assistant",
+                    "id": aid,
+                    "name": name,
+                    "metadata": {},
+                }
+            },
+        )
+
+    await client.post(
+        f"/acp/threads/{thread_id}/messages",
+        json={
+            "client_id": "c_1",
+            "content": [{"type": "text", "text": "start"}],
+            "recipients": ["assistant_a"],
+        },
+    )
+    await _drain_tasks(server)
+
+    assert len(ran_a) == 1
+    assert len(ran_b) == 1
+
+
+async def test_chain_depth_caps_runaway_chain(
+    clean_db: asyncpg.Pool,
+) -> None:
+    store = PostgresThreadStore(pool=clean_db)
+    alice = UserIdentity(id="u_alice", name="Alice", metadata={"tenant": {"org": "A"}})
+
+    async def auth(_h: HandshakeData) -> Identity:
+        return alice
+
+    server = ThreadServer(store=store, authenticate=auth, run_timeout_seconds=5)
+    runs: list[tuple[str, int]] = []
+
+    @server.assistant("a")
+    async def a(ctx, send):
+        depth = server.executor.chain_depth_for(ctx.run.id)
+        runs.append(("a", depth))
+        yield send.message(
+            content=[TextPart(text="to b")],
+            recipients=["b"],
+        )
+
+    @server.assistant("b")
+    async def b(ctx, send):
+        depth = server.executor.chain_depth_for(ctx.run.id)
+        runs.append(("b", depth))
+        yield send.message(
+            content=[TextPart(text="to a")],
+            recipients=["a"],
+        )
+
+    app = FastAPI()
+    app.state.thread_server = server
+    app.include_router(server.router, prefix="/acp")
+    client = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+
+    create = await client.post("/acp/threads", json={"tenant": {"org": "A"}})
+    thread_id = create.json()["id"]
+    for aid, name in [("a", "A"), ("b", "B")]:
+        await client.post(
+            f"/acp/threads/{thread_id}/members",
+            json={
+                "identity": {
+                    "role": "assistant",
+                    "id": aid,
+                    "name": name,
+                    "metadata": {},
+                }
+            },
+        )
+
+    await client.post(
+        f"/acp/threads/{thread_id}/messages",
+        json={
+            "client_id": "c_1",
+            "content": [{"type": "text", "text": "kick off"}],
+            "recipients": ["a"],
+        },
+    )
+    await _drain_tasks(server)
+
+    depths = [d for _, d in runs]
+    assert max(depths) <= 8
+
+
+async def test_authorize_target_id_gates_per_assistant(
+    clean_db: asyncpg.Pool,
+) -> None:
+    store = PostgresThreadStore(pool=clean_db)
+    alice = UserIdentity(id="u_alice", name="Alice", metadata={"tenant": {"org": "A"}})
+
+    async def auth(_h: HandshakeData) -> Identity:
+        return alice
+
+    async def authorize(
+        identity: Identity,
+        thread_id: str,
+        action: str,
+        *,
+        target_id: str | None = None,
+    ) -> bool:
+        if action == "assistant.invoke":
+            return target_id == "allowed"
+        return True
+
+    server = ThreadServer(
+        store=store,
+        authenticate=auth,
+        authorize=authorize,
+        run_timeout_seconds=5,
+    )
+    ran: list[str] = []
+
+    @server.assistant("allowed")
+    async def allowed(ctx, send):
+        ran.append("allowed")
+        yield send.message(content=[TextPart(text="ok")])
+
+    @server.assistant("denied")
+    async def denied(ctx, send):
+        ran.append("denied")
+        yield send.message(content=[TextPart(text="should not run")])
+
+    app = FastAPI()
+    app.state.thread_server = server
+    app.include_router(server.router, prefix="/acp")
+    client = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+
+    create = await client.post("/acp/threads", json={"tenant": {"org": "A"}})
+    thread_id = create.json()["id"]
+    for aid in ["allowed", "denied"]:
+        await client.post(
+            f"/acp/threads/{thread_id}/members",
+            json={
+                "identity": {
+                    "role": "assistant",
+                    "id": aid,
+                    "name": aid,
+                    "metadata": {},
+                }
+            },
+        )
+
+    await client.post(
+        f"/acp/threads/{thread_id}/messages",
+        json={
+            "client_id": "c_1",
+            "content": [{"type": "text", "text": "ping"}],
+            "recipients": ["allowed", "denied"],
+        },
+    )
+    await _drain_tasks(server)
+
+    assert ran == ["allowed"]
+
+
 async def test_auto_invoke_disabled_preserves_current_behavior(
     clean_db: asyncpg.Pool,
 ) -> None:

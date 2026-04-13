@@ -62,6 +62,10 @@ class RunExecutor:
         self._handler_resolver = handler_resolver
         self._stream_sink_factory = stream_sink_factory
         self._tasks: dict[str, asyncio.Task[None]] = {}
+        self._chain_depths: dict[str, int] = {}
+
+    def chain_depth_for(self, run_id: str) -> int:
+        return self._chain_depths.get(run_id, 0)
 
     async def invoke_from_handler(
         self,
@@ -92,6 +96,8 @@ class RunExecutor:
         triggered_by: Identity,
         handler: HandlerCallable,
         idempotency_key: str | None = None,
+        *,
+        chain_depth: int = 0,
     ) -> Run:
         if idempotency_key:
             existing = await self._store.find_run_by_idempotency_key(thread.id, idempotency_key)
@@ -123,6 +129,7 @@ class RunExecutor:
                     return existing
             raise
 
+        self._chain_depths[run.id] = chain_depth
         task = asyncio.create_task(self._drive(run, thread, assistant, handler))
         self._tasks[run.id] = task
         return run
@@ -228,6 +235,7 @@ class RunExecutor:
         finally:
             await analytics.flush()
             self._tasks.pop(run.id, None)
+            self._chain_depths.pop(run.id, None)
 
 
 def _evt_id() -> str:

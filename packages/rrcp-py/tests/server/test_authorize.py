@@ -22,7 +22,13 @@ async def client_with_authorize(
     async def auth(_h: HandshakeData) -> Identity:
         return alice
 
-    async def authorize(identity: Identity, thread_id: str, action: str) -> bool:
+    async def authorize(
+        identity: Identity,
+        thread_id: str,
+        action: str,
+        *,
+        target_id: str | None = None,
+    ) -> bool:
         calls.append((identity.id, thread_id, action))
         return action != "thread.delete"
 

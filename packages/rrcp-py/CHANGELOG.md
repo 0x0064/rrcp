@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### BREAKING
+
+- `AuthorizeCallback` signature now takes an optional `target_id: str | None = None` keyword argument. Honors per-assistant authorization for the `assistant.invoke` action: when auto-invoke fires for `recipients=[A, B]`, each target is checked independently. Migration: add `target_id: str | None = None` to your callback's keyword parameters. Callbacks that don't care about the target can ignore it.
+- `ThreadServer.publish_event` is now the single write chokepoint for recipients normalization, membership validation, and auto-invoke. Handler-yielded events (`send.message(recipients=...)`, `send.reasoning(recipients=...)`, etc.) now go through the same author-strip and membership check as REST and Socket.IO write paths. A handler that yields an event with recipients referencing a non-member will fail its run with `handler_error` / `recipient_not_member`. A handler that lists its own id in recipients has it stripped on write. Previously these rules only applied to REST and Socket.IO.
+- Assistant-to-assistant auto-invoke is now wired end-to-end. A handler yielding a `MessageEvent` with `recipients=[other_assistant_id]` triggers an in-thread run of `other_assistant_id` via the same auto-invoke path user-initiated sends go through. Loop protection: (1) chain depth capped at 8 via in-memory `RunExecutor._chain_depths` tracking, (2) active-run dedup via `find_active_run` breaks A→B→A cycles within a single run, (3) author-strip prevents self-invoke. In-memory depth tracking is per-process; cross-process deployments should rely on consumer handlers to self-police.
+
 ### Added
 
 - Streaming primitive: `HandlerSend.message_stream()` and `HandlerSend.reasoning_stream()` async context managers, with ephemeral `stream:start` / `stream:delta` / `stream:end` Socket.IO broadcast channels. Deltas are not persisted; the final `MessageEvent` / `ReasoningEvent` is appended to the store on clean stream exit. On exception or cancellation, `stream:end` carries an error and no final event is published. See `docs/plans/2026-04-12-streaming-design.md`.

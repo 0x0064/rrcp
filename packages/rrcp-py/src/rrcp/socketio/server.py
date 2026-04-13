@@ -9,7 +9,7 @@ import socketio
 from rrcp.protocol.content import parse_content_part
 from rrcp.protocol.event import MessageEvent
 from rrcp.protocol.identity import AssistantIdentity, Identity
-from rrcp.protocol.recipients import normalize_recipients
+from rrcp.protocol.recipients import RecipientNotMemberError
 from rrcp.protocol.tenant import matches
 from rrcp.server.auth import HandshakeData
 from rrcp.server.namespace import NamespaceViolation, parse_namespace_path
@@ -276,13 +276,6 @@ class ThreadNamespace(socketio.AsyncNamespace):
         raw_recipients = draft.get("recipients")
         if raw_recipients is not None and not isinstance(raw_recipients, list):
             return _error("invalid_request", "recipients must be a list of identity ids")
-        recipients = normalize_recipients(raw_recipients, author_id=identity.id)
-        members = await self._server.store.list_members(thread_id) if recipients is not None else []
-        if recipients is not None:
-            member_ids = {m.identity_id for m in members}
-            unknown = [rid for rid in recipients if rid not in member_ids]
-            if unknown:
-                return _error("recipient_not_member", f"recipient_not_member: {unknown[0]}")
 
         event = MessageEvent(
             id=f"evt_{secrets.token_hex(8)}",
@@ -291,30 +284,14 @@ class ThreadNamespace(socketio.AsyncNamespace):
             created_at=datetime.now(UTC),
             metadata=draft.get("metadata") or {},
             client_id=draft.get("client_id"),
-            recipients=recipients,
+            recipients=raw_recipients,
             content=parts,
         )
-        await self._server.publish_event(event, thread=thread)
-
-        if recipients and self._server.auto_invoke_recipients:
-            members_by_id = {m.identity_id: m for m in members}
-            for assistant_id in recipients:
-                handler = self._server.get_handler(assistant_id)
-                if handler is None:
-                    continue
-                if not await self._server.check_authorize(identity, thread_id, "assistant.invoke"):
-                    continue
-                member = members_by_id.get(assistant_id)
-                if member is None or not isinstance(member.identity, AssistantIdentity):
-                    continue
-                await self._server.executor.execute(
-                    thread=thread,
-                    assistant=member.identity,
-                    triggered_by=identity,
-                    handler=handler,
-                )
-
-        return {"event": event.model_dump(mode="json", by_alias=True)}
+        try:
+            appended = await self._server.publish_event(event, thread=thread)
+        except RecipientNotMemberError as exc:
+            return _error("recipient_not_member", str(exc))
+        return {"event": appended.model_dump(mode="json", by_alias=True)}
 
     async def on_assistant_invoke(self, sid: str, data: dict[str, Any]) -> dict[str, Any]:
         identity = await _identity(self, sid)

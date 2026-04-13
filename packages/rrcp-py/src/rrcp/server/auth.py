@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -15,5 +14,16 @@ class HandshakeData(BaseModel):
     auth: dict[str, Any] = Field(default_factory=dict)
 
 
-AuthenticateCallback = Callable[[HandshakeData], Awaitable[Identity | None]]
-AuthorizeCallback = Callable[[Identity, str, str], Awaitable[bool]]
+class AuthenticateCallback(Protocol):
+    async def __call__(self, handshake: HandshakeData) -> Identity | None: ...
+
+
+class AuthorizeCallback(Protocol):
+    async def __call__(
+        self,
+        identity: Identity,
+        thread_id: str,
+        action: str,
+        *,
+        target_id: str | None = None,
+    ) -> bool: ...
