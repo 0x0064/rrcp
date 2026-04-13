@@ -87,3 +87,28 @@ async def test_assistant_in_recipients_triggers_handler(
             pass
 
     assert len(ran) == 1
+
+
+async def test_broadcast_does_not_auto_invoke(
+    env: tuple[ThreadServer, AsyncClient, str, list[str]],
+) -> None:
+    server, client, thread_id, ran = env
+
+    response = await client.post(
+        f"/acp/threads/{thread_id}/messages",
+        json={
+            "client_id": "c_1",
+            "content": [{"type": "text", "text": "team chat, no target"}],
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["recipients"] is None
+
+    await asyncio.sleep(0.1)
+    for task in list(server.executor._tasks.values()):
+        try:
+            await task
+        except Exception:
+            pass
+
+    assert ran == []
