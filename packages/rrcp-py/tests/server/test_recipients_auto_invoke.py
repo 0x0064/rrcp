@@ -112,3 +112,20 @@ async def test_broadcast_does_not_auto_invoke(
             pass
 
     assert ran == []
+
+
+async def test_recipient_not_member_returns_400(
+    env: tuple[ThreadServer, AsyncClient, str, list[str]],
+) -> None:
+    _, client, thread_id, _ = env
+
+    response = await client.post(
+        f"/acp/threads/{thread_id}/messages",
+        json={
+            "client_id": "c_1",
+            "content": [{"type": "text", "text": "ghost"}],
+            "recipients": ["ghost-id"],
+        },
+    )
+    assert response.status_code == 400
+    assert "recipient_not_member" in response.json()["detail"]
