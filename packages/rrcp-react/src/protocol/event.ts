@@ -10,6 +10,7 @@ export type EventBase = {
   createdAt: string
   metadata: Record<string, unknown>
   clientId?: string
+  recipients: string[] | null
 }
 
 export type EventBaseWire = {
@@ -20,6 +21,7 @@ export type EventBaseWire = {
   created_at: string
   metadata: Record<string, unknown>
   client_id?: string | null
+  recipients?: string[] | null
 }
 
 export type ToolCall = {
@@ -85,10 +87,12 @@ export type EventDraft = {
   clientId: string
   content?: ContentPart[]
   metadata?: Record<string, unknown>
+  recipients?: string[] | null
 }
 
 export type EventDraftWire = {
   client_id: string
   content?: ContentPartWire[]
   metadata?: Record<string, unknown>
+  recipients?: string[] | null
 }

@@ -11,6 +11,7 @@ function makeMessage(id: string, threadId = 'th_1', createdAt = '2026-04-10T00:0
     author: { role: 'user', id: 'u1', name: 'A', metadata: {} },
     createdAt,
     metadata: {},
+    recipients: null,
     content: [{ type: 'text', text: id }],
   }
 }
@@ -88,6 +89,7 @@ describe('threadStore', () => {
       author: { role: 'assistant', id: 'a1', name: 'H', metadata: {} },
       createdAt: '2026-04-10T00:00:01Z',
       metadata: {},
+      recipients: null,
     })
     expect(store.getState().activeRuns.th_1?.run_1).toBeUndefined()
   })

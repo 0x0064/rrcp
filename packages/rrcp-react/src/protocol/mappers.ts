@@ -142,6 +142,7 @@ export function toEvent(wire: EventWire): Event {
     createdAt: wire.created_at,
     metadata: wire.metadata ?? {},
     clientId: wire.client_id ?? undefined,
+    recipients: wire.recipients ?? null,
   }
   switch (wire.type) {
     case 'message':
@@ -203,5 +204,6 @@ export function toEventDraftWire(domain: EventDraft): EventDraftWire {
     client_id: domain.clientId,
     content: domain.content?.map(toContentPartWire),
     metadata: domain.metadata,
+    recipients: domain.recipients ?? null,
   }
 }

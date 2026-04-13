@@ -45,6 +45,7 @@ describe('hooks integration', () => {
             author: { role: 'user', id: 'u1', name: 'A', metadata: {} },
             createdAt: '2026-04-10T00:00:00Z',
             metadata: {},
+            recipients: null,
             content: [{ type: 'text', text: 'hi' }],
           },
         ],
@@ -114,6 +115,7 @@ describe('hooks integration', () => {
         author: { role: 'user', id: 'u1', name: 'A', metadata: {} },
         createdAt: '2026-04-10T00:00:01Z',
         metadata: {},
+        recipients: null,
         content: [{ type: 'text', text: 'live' }],
       })
     })
