@@ -21,13 +21,20 @@ async def store(clean_db: asyncpg.Pool) -> PostgresThreadStore:
     return s
 
 
-def _msg(id: str, ts: datetime, text: str) -> MessageEvent:
+def _msg(
+    id: str,
+    ts: datetime,
+    text: str,
+    *,
+    recipients: list[str] | None = None,
+) -> MessageEvent:
     return MessageEvent(
         id=id,
         thread_id="th_1",
         author=UserIdentity(id="u1", name="Alice"),
         created_at=ts,
         content=[TextPart(text=text)],
+        recipients=recipients,
     )
 
 
@@ -68,3 +75,30 @@ async def test_list_events_filter_by_type(store: PostgresThreadStore) -> None:
     assert page.items == []
     page = await store.list_events("th_1", types=["message"])
     assert len(page.items) == 1
+
+
+async def test_recipients_round_trip(store: PostgresThreadStore) -> None:
+    ts = datetime.now(UTC)
+    event = _msg("e_rcp", ts, "directed message", recipients=["ops-assistant"])
+    appended = await store.append_event(event)
+    assert appended.recipients == ["ops-assistant"]
+
+    got = await store.get_event("e_rcp")
+    assert got is not None
+    assert got.recipients == ["ops-assistant"]
+
+    page = await store.list_events("th_1")
+    stored = page.items[-1]
+    assert isinstance(stored, MessageEvent)
+    assert stored.recipients == ["ops-assistant"]
+
+
+async def test_recipients_none_round_trip(store: PostgresThreadStore) -> None:
+    ts = datetime.now(UTC)
+    event = _msg("e_broadcast", ts, "broadcast message", recipients=None)
+    appended = await store.append_event(event)
+    assert appended.recipients is None
+
+    got = await store.get_event("e_broadcast")
+    assert got is not None
+    assert got.recipients is None
