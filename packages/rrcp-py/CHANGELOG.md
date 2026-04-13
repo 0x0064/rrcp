@@ -8,6 +8,12 @@
 - `Broadcaster` protocol gains `broadcast_stream_start`, `broadcast_stream_delta`, `broadcast_stream_end`. Implemented by `SocketIOBroadcaster` and `RecordingBroadcaster`.
 - `HandlerContext.query_event(events=...)` — optional pre-fetched events list. Consumers that already call `ctx.events()` for history building can pass the same list into `query_event()` to avoid a second round-trip to the store. Backwards compatible; omitting the parameter keeps the existing store-fetch behavior.
 - `HandlerContext.update_thread(patch)` — handler-side thread mutation. Writes the patch to the store, publishes a `thread.tenant_changed` event if tenant changed, and broadcasts the updated thread via `publish_thread_updated`. `ctx.thread` is refreshed in place so subsequent reads reflect the update. Wired through `RunExecutor` via a new `publish_thread_updated` constructor parameter; `ThreadServer` passes it automatically. No authorize check — handlers are trusted server-side code.
+- `EventDraft` and `_EventBase` gain `recipients: list[str] | None` — a routing hint indicating which thread members a message is addressed to. `None` or empty list means broadcast (unchanged default).
+- `ThreadServer` gains `auto_invoke_recipients: bool = True` option. When `True`, posted messages with registered assistant ids in `recipients` auto-invoke each of those assistants via the existing `authorize` callback. `sendMessage` collapses into `sendMessage + invoke` behavior without a separate client call.
+- REST `POST /threads/{id}/messages` and Socket.IO `message:send` validate recipients against current thread membership, returning `400 recipient_not_member` on unknown ids. Author id is stripped from recipients on write; empty lists are normalized to `None`.
+- `HandlerContext.query_event()` now filters by `recipients` structurally — skips messages from the triggerer that are addressed to a different assistant, in multi-assistant threads. (The forward-compat scaffolding from `0.1.0a1` is now active.)
+- `HandlerContext.events(relevant_to_me: bool = False)` — when `True`, returns only broadcast events and events addressed to `ctx.run.assistant.id`.
+- `HandlerSend.message()`, `reasoning()`, `tool_call()`, `tool_result()` gain an optional `recipients` keyword argument so handlers can address their output events to specific thread members.
 
 ## 0.1.0a1
 
