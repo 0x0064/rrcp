@@ -129,3 +129,32 @@ async def test_recipient_not_member_returns_400(
     )
     assert response.status_code == 400
     assert "recipient_not_member" in response.json()["detail"]
+
+
+async def test_auto_invoke_disabled_preserves_current_behavior(
+    clean_db: asyncpg.Pool,
+) -> None:
+    server, client, thread_id, ran = await _build_env(
+        clean_db,
+        auto_invoke_recipients=False,
+    )
+
+    response = await client.post(
+        f"/acp/threads/{thread_id}/messages",
+        json={
+            "client_id": "c_1",
+            "content": [{"type": "text", "text": "hello"}],
+            "recipients": ["specialist"],
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["recipients"] == ["specialist"]
+
+    await asyncio.sleep(0.1)
+    for task in list(server.executor._tasks.values()):
+        try:
+            await task
+        except Exception:
+            pass
+
+    assert ran == []
