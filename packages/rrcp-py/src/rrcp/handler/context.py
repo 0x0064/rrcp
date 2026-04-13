@@ -83,28 +83,20 @@ class HandlerContext:
         """Return the message event that most likely triggered this run.
 
         Walks thread history backwards from the most recent event and returns
-        the first MessageEvent authored by ``self.run.triggered_by``. This is
-        the canonical way to answer "what did the user just say to me" from
-        inside a handler and is race-safe in multi-user threads where other
-        members may post events between the invoker's sendMessage and invoke.
+        the first MessageEvent authored by ``self.run.triggered_by`` where
+        ``recipients`` is either empty (broadcast) or contains
+        ``self.run.assistant.id``. This is the canonical way to answer "what
+        did the user just say to me" from inside a handler.
 
-        When the event protocol gains a ``recipients`` field in a future
-        release, this method will additionally require that recipients is
-        empty (broadcast) or contains ``self.run.assistant.id``, so team
-        chat from the triggerer is skipped. Today the check is a no-op
-        because the field does not exist yet — callers that need this
-        today can filter on ``event.metadata`` at the consumer level.
-
-        :param events: Optional pre-fetched events. If provided, the
+        :param events: Optional pre-fetched events list. If provided, the
             method walks this list instead of calling the store. Use this
-            when your handler already needs the event history for other
-            purposes (history building, command routing) to avoid a
-            redundant round-trip. The list should be ordered oldest to
-            newest, same as :meth:`events` returns.
+            when the handler already needs event history for other purposes
+            (history building, command routing) to avoid a redundant
+            round-trip.
 
         Returns None if no matching message is found within the lookback
         window (``_QUERY_LOOKBACK``). Typical cause: the run was invoked
-        without a preceding user message, or the triggering message has
+        without a preceding directed message, or the triggering message
         scrolled out behind a large volume of intervening events.
         """
         if events is None:
@@ -117,11 +109,7 @@ class HandlerContext:
                 continue
             if evt.author.id != triggerer_id:
                 continue
-            # Forward-compatible recipients check: if the field is present
-            # and non-empty, require that this assistant is addressed.
-            # Absent or empty recipients means broadcast, accept.
-            recipients = getattr(evt, "recipients", None)
-            if recipients and my_id not in recipients:
+            if evt.recipients and my_id not in evt.recipients:
                 continue
             return evt
         return None
