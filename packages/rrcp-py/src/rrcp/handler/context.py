@@ -37,9 +37,18 @@ class HandlerContext:
         self.assistant = assistant
         self.analytics = analytics
 
-    async def events(self, limit: int | None = None) -> list[Event]:
+    async def events(
+        self,
+        limit: int | None = None,
+        *,
+        relevant_to_me: bool = False,
+    ) -> list[Event]:
         page = await self._store.list_events(self.thread.id, limit=limit or 100)
-        return page.items
+        items = page.items
+        if relevant_to_me:
+            my_id = self.assistant.id
+            items = [e for e in items if not e.recipients or my_id in e.recipients]
+        return items
 
     async def members(self) -> list[Identity]:
         rows = await self._store.list_members(self.thread.id)

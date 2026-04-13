@@ -57,6 +57,24 @@ def _message(
     )
 
 
+def _message_with_recipients(
+    *,
+    id: str,
+    author_id: str,
+    recipients: list[str],
+    text: str,
+    minutes_ago: int,
+) -> MessageEvent:
+    return MessageEvent(
+        id=id,
+        thread_id="t_test",
+        author=UserIdentity(id=author_id, name=author_id, metadata={}),
+        created_at=datetime.now(UTC).replace(microsecond=minutes_ago * 1000),
+        content=[TextPart(text=text)],
+        recipients=recipients,
+    )
+
+
 def _build_ctx(events: list[Event], triggerer_id: str, assistant_id: str = "ops-assistant") -> HandlerContext:
     store = cast(ThreadStore, _FakeStore(events))
     thread = Thread(
@@ -131,6 +149,36 @@ async def test_query_event_ignores_assistant_replies() -> None:
     result = await ctx.query_event()
     assert result is not None
     assert result.id == "e1"
+
+
+async def test_events_relevant_to_me_filters_by_recipients() -> None:
+    events: list[Event] = [
+        _message(id="e1", author_id="u_alice", author_role="user", text="broadcast", minutes_ago=5),
+        _message_with_recipients(
+            id="e2",
+            author_id="u_alice",
+            recipients=["ops-assistant"],
+            text="for specialist",
+            minutes_ago=4,
+        ),
+        _message_with_recipients(
+            id="e3",
+            author_id="u_alice",
+            recipients=["other-assistant"],
+            text="for other",
+            minutes_ago=3,
+        ),
+    ]
+    ctx = _build_ctx(events, triggerer_id="u_alice", assistant_id="ops-assistant")
+
+    all_events = await ctx.events(limit=10)
+    assert len(all_events) == 3
+
+    relevant = await ctx.events(limit=10, relevant_to_me=True)
+    relevant_ids = [e.id for e in relevant]
+    assert "e1" in relevant_ids
+    assert "e2" in relevant_ids
+    assert "e3" not in relevant_ids
 
 
 async def test_query_event_uses_prefetched_events_without_hitting_store() -> None:
