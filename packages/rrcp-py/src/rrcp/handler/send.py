@@ -38,6 +38,8 @@ class HandlerSend:
         self,
         content: list[ContentPart],
         metadata: dict[str, Any] | None = None,
+        *,
+        recipients: list[str] | None = None,
     ) -> MessageEvent:
         return MessageEvent(
             id=_new_id(),
@@ -46,6 +48,7 @@ class HandlerSend:
             author=self._author,
             created_at=datetime.now(UTC),
             metadata=metadata or {},
+            recipients=recipients,
             content=content,
         )
 
@@ -53,6 +56,8 @@ class HandlerSend:
         self,
         text: str,
         metadata: dict[str, Any] | None = None,
+        *,
+        recipients: list[str] | None = None,
     ) -> ReasoningEvent:
         return ReasoningEvent(
             id=_new_id(),
@@ -61,6 +66,7 @@ class HandlerSend:
             author=self._author,
             created_at=datetime.now(UTC),
             metadata=metadata or {},
+            recipients=recipients,
             content=text,
         )
 
@@ -70,6 +76,8 @@ class HandlerSend:
         arguments: Any,
         id: str | None = None,
         metadata: dict[str, Any] | None = None,
+        *,
+        recipients: list[str] | None = None,
     ) -> ToolCallEvent:
         return ToolCallEvent(
             id=_new_id(),
@@ -78,6 +86,7 @@ class HandlerSend:
             author=self._author,
             created_at=datetime.now(UTC),
             metadata=metadata or {},
+            recipients=recipients,
             tool=ToolCall(
                 id=id or f"call_{secrets.token_hex(8)}",
                 name=name,
@@ -91,6 +100,8 @@ class HandlerSend:
         result: Any | None = None,
         error: dict[str, Any] | None = None,
         metadata: dict[str, Any] | None = None,
+        *,
+        recipients: list[str] | None = None,
     ) -> ToolResultEvent:
         return ToolResultEvent(
             id=_new_id(),
@@ -99,6 +110,7 @@ class HandlerSend:
             author=self._author,
             created_at=datetime.now(UTC),
             metadata=metadata or {},
+            recipients=recipients,
             tool=ToolResult(id=tool_id, result=result, error=error),
         )
 
