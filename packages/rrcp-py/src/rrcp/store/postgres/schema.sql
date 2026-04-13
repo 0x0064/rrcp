@@ -37,8 +37,10 @@ CREATE TABLE IF NOT EXISTS events (
   payload      JSONB NOT NULL,
   metadata     JSONB NOT NULL DEFAULT '{}',
   client_id    TEXT,
+  recipients   JSONB,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE events ADD COLUMN IF NOT EXISTS recipients JSONB;
 CREATE INDEX IF NOT EXISTS events_thread_time ON events (thread_id, created_at, id);
 CREATE INDEX IF NOT EXISTS events_thread_type ON events (thread_id, type);
 CREATE INDEX IF NOT EXISTS events_run ON events (run_id) WHERE run_id IS NOT NULL;
