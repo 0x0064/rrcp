@@ -35,6 +35,24 @@ def _validate_namespace_keys(namespace_keys: list[str] | None) -> list[str] | No
     return list(namespace_keys)
 
 
+class _BoundStreamSink:
+    def __init__(self, server: ThreadServer, thread: Thread) -> None:
+        self._server = server
+        self._thread = thread
+
+    async def start(self, frame: StreamStartFrame) -> None:
+        await self._server.broadcast_stream_start(frame, thread=self._thread)
+
+    async def delta(self, frame: StreamDeltaFrame) -> None:
+        await self._server.broadcast_stream_delta(frame, thread=self._thread)
+
+    async def end(self, frame: StreamEndFrame) -> None:
+        await self._server.broadcast_stream_end(frame, thread=self._thread)
+
+    async def publish_event(self, event: Event) -> Event:
+        return await self._server.publish_event(event, thread=self._thread)
+
+
 class ThreadServer:
     def __init__(
         self,
@@ -190,21 +208,3 @@ class ThreadServer:
         self.broadcaster = SocketIOBroadcaster(sio_server.sio)
         self._socketio = sio_server
         return sio_server.asgi_app(fastapi_app)
-
-
-class _BoundStreamSink:
-    def __init__(self, server: ThreadServer, thread: Thread) -> None:
-        self._server = server
-        self._thread = thread
-
-    async def start(self, frame: StreamStartFrame) -> None:
-        await self._server.broadcast_stream_start(frame, thread=self._thread)
-
-    async def delta(self, frame: StreamDeltaFrame) -> None:
-        await self._server.broadcast_stream_delta(frame, thread=self._thread)
-
-    async def end(self, frame: StreamEndFrame) -> None:
-        await self._server.broadcast_stream_end(frame, thread=self._thread)
-
-    async def publish_event(self, event: Event) -> Event:
-        return await self._server.publish_event(event, thread=self._thread)

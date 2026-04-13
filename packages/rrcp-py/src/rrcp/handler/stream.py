@@ -45,9 +45,10 @@ class Stream:
         self._author = author
         self._metadata = metadata or {}
         self._buffer: list[str] = []
-        self.event_id = _new_event_id()
+        self.event_id = ""
 
     async def __aenter__(self) -> Stream:
+        self.event_id = _new_event_id()
         await self._sink.start(
             StreamStartFrame(
                 event_id=self.event_id,
@@ -115,8 +116,8 @@ class Stream:
         )
 
     def _error_for(self, exc_type: Any, exc: Any) -> StreamError:
-        if exc_type is asyncio.CancelledError:
+        if isinstance(exc, asyncio.CancelledError):
             return StreamError(code="cancelled", message="run cancelled")
-        if exc_type is TimeoutError:
+        if isinstance(exc, TimeoutError):
             return StreamError(code="timeout", message="run timed out")
         return StreamError(code="handler_error", message=str(exc) or exc_type.__name__)
