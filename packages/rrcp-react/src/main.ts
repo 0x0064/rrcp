@@ -77,7 +77,11 @@ export {
   type ThreadStoreState,
 } from './store/threadStore'
 // Tier 2 utilities
-export { parseMentions } from './utils/parseMentions'
+export {
+  type MentionSpan,
+  type ParseMentionsResult,
+  parseMentions,
+} from './utils/parseMentions'
 export {
   type UploadItem,
   type UploadStatus,
