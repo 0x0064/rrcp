@@ -60,6 +60,7 @@ class ThreadServer:
         store: ThreadStore,
         authenticate: AuthenticateCallback,
         authorize: AuthorizeCallback | None = None,
+        auto_invoke_recipients: bool = True,
         on_analytics: OnAnalyticsCallback | None = None,
         run_timeout_seconds: int = 120,
         replay_cap: int = 500,
@@ -69,6 +70,7 @@ class ThreadServer:
         self.store = store
         self.authenticate = authenticate
         self.authorize = authorize
+        self.auto_invoke_recipients = auto_invoke_recipients
         self.replay_cap = replay_cap
         self.broadcaster = broadcaster
         self.namespace_keys = _validate_namespace_keys(namespace_keys)
