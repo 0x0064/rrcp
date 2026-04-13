@@ -83,7 +83,7 @@ class Stream:
             )
             await self._sink.publish_event(self._build_event())
             return
-        error = self._error_for(exc_type, exc)
+        error = self._error_for(exc)
         await self._sink.end(
             StreamEndFrame(
                 event_id=self.event_id,
@@ -115,9 +115,9 @@ class Stream:
             content=text,
         )
 
-    def _error_for(self, exc_type: Any, exc: Any) -> StreamError:
+    def _error_for(self, exc: Any) -> StreamError:
         if isinstance(exc, asyncio.CancelledError):
             return StreamError(code="cancelled", message="run cancelled")
         if isinstance(exc, TimeoutError):
             return StreamError(code="timeout", message="run timed out")
-        return StreamError(code="handler_error", message=str(exc) or exc_type.__name__)
+        return StreamError(code="handler_error", message=str(exc) or type(exc).__name__)

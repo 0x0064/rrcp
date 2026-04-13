@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pytest
 
-from rrcp.broadcast.recording import RecordingBroadcaster
 from rrcp.handler.send import HandlerSend
 from rrcp.handler.stream import StreamSink
 from rrcp.protocol.content import TextPart
@@ -13,17 +12,19 @@ from rrcp.protocol.stream import StreamDeltaFrame, StreamEndFrame, StreamStartFr
 
 class _FakeSink:
     def __init__(self) -> None:
-        self.broadcaster = RecordingBroadcaster()
+        self.starts: list[StreamStartFrame] = []
+        self.deltas: list[StreamDeltaFrame] = []
+        self.ends: list[StreamEndFrame] = []
         self.published: list[Event] = []
 
     async def start(self, frame: StreamStartFrame) -> None:
-        await self.broadcaster.broadcast_stream_start(frame)
+        self.starts.append(frame)
 
     async def delta(self, frame: StreamDeltaFrame) -> None:
-        await self.broadcaster.broadcast_stream_delta(frame)
+        self.deltas.append(frame)
 
     async def end(self, frame: StreamEndFrame) -> None:
-        await self.broadcaster.broadcast_stream_end(frame)
+        self.ends.append(frame)
 
     async def publish_event(self, event: Event) -> Event:
         self.published.append(event)
@@ -47,10 +48,10 @@ async def test_message_stream_happy_path() -> None:
         await stream.append("hello")
         await stream.append(" world")
 
-    assert len(sink.broadcaster.stream_starts) == 1
-    assert [d.text for d in sink.broadcaster.stream_deltas] == ["hello", " world"]
-    assert len(sink.broadcaster.stream_ends) == 1
-    assert sink.broadcaster.stream_ends[0].error is None
+    assert len(sink.starts) == 1
+    assert [d.text for d in sink.deltas] == ["hello", " world"]
+    assert len(sink.ends) == 1
+    assert sink.ends[0].error is None
     assert len(sink.published) == 1
 
     event = sink.published[0]
@@ -70,10 +71,9 @@ async def test_message_stream_handler_error_publishes_no_event() -> None:
             await stream.append("partial")
             raise RuntimeError("boom")
 
-    assert len(sink.broadcaster.stream_starts) == 1
-    assert len(sink.broadcaster.stream_deltas) == 1
-    assert len(sink.broadcaster.stream_ends) == 1
-    end = sink.broadcaster.stream_ends[0]
-    assert end.error is not None
-    assert end.error.code == "handler_error"
+    assert len(sink.starts) == 1
+    assert len(sink.deltas) == 1
+    assert len(sink.ends) == 1
+    assert sink.ends[0].error is not None
+    assert sink.ends[0].error.code == "handler_error"
     assert sink.published == []
