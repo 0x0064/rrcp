@@ -63,13 +63,14 @@ export function useThreadActions(threadId: string | null): UseThreadActions {
       ask: (assistantIds: string[], draft: EventDraft) => {
         if (!threadId) throw new Error('threadId is required')
         return withTransition(async () => {
-          const message = await client.sendMessage(threadId, draft)
-          try {
-            const result = await client.invoke(threadId, { assistantIds })
-            return { message, runs: result.runs, error: undefined }
-          } catch (err) {
-            return { message, runs: null, error: err as Error }
-          }
+          const mergedRecipients = Array.from(
+            new Set([...(draft.recipients ?? []), ...assistantIds])
+          )
+          const message = await client.sendMessage(threadId, {
+            ...draft,
+            recipients: mergedRecipients,
+          })
+          return { message, runs: null, error: undefined }
         })
       },
       cancelRun: (runId: string) => withTransition(() => client.cancelRun(runId)),
