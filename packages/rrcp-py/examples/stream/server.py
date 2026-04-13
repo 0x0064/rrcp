@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 
 import asyncpg
@@ -10,12 +11,10 @@ from fastapi import FastAPI
 from rrcp import (
     HandshakeData,
     PostgresThreadStore,
+    TextPart,
     ThreadServer,
     UserIdentity,
 )
-
-
-client = AsyncAnthropic()
 
 
 async def authenticate(handshake: HandshakeData) -> UserIdentity | None:
@@ -28,10 +27,10 @@ async def authenticate(handshake: HandshakeData) -> UserIdentity | None:
     return UserIdentity(id=user_id, name=user_id)
 
 
-async def build_server() -> tuple[FastAPI, object]:
-    pool = await asyncpg.create_pool(
-        os.environ.get("DATABASE_URL", "postgresql://rrcp:rrcp@localhost:55432/rrcp_test")
-    )
+async def main() -> None:
+    pool = await asyncpg.create_pool(os.environ.get("DATABASE_URL", "postgresql://rrcp:rrcp@localhost:55432/rrcp_test"))
+    client = AsyncAnthropic()
+
     thread_server = ThreadServer(
         store=PostgresThreadStore(pool=pool),
         authenticate=authenticate,
@@ -45,7 +44,7 @@ async def build_server() -> tuple[FastAPI, object]:
             if event.type != "message":
                 continue
             role = "user" if event.author.role == "user" else "assistant"
-            text = "".join(p.text for p in event.content if p.type == "text")
+            text = "".join(p.text for p in event.content if isinstance(p, TextPart))
             if text:
                 messages.append({"role": role, "content": text})
         if not messages:
@@ -57,18 +56,21 @@ async def build_server() -> tuple[FastAPI, object]:
                 max_tokens=1024,
                 messages=messages,
             ) as result:
-                async for text in result.text_stream:
-                    await stream.append(text)
+                async for chunk in result.text_stream:
+                    await stream.append(chunk)
 
     app = FastAPI()
     app.state.thread_server = thread_server
     app.include_router(thread_server.router, prefix="/acp")
     asgi = thread_server.mount_socketio(app)
-    return app, asgi
+
+    config = uvicorn.Config(asgi, host="0.0.0.0", port=8000, loop="asyncio")
+    server = uvicorn.Server(config)
+    try:
+        await server.serve()
+    finally:
+        await pool.close()
 
 
 if __name__ == "__main__":
-    import asyncio
-
-    app, asgi = asyncio.run(build_server())
-    uvicorn.run(asgi, host="0.0.0.0", port=8000)
+    asyncio.run(main())

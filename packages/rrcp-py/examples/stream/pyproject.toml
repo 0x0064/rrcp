@@ -1,11 +1,14 @@
 [project]
-name = "rrcp-example-streaming-anthropic"
+name = "rrcp-example-stream"
 version = "0.0.0"
 requires-python = ">=3.11"
 dependencies = [
-    "rrcp>=0.2.0",
+    "rrcp",
     "anthropic>=0.40.0",
     "fastapi>=0.115",
     "uvicorn>=0.32",
     "asyncpg>=0.30",
 ]
+
+[tool.uv.sources]
+rrcp = { path = "../..", editable = true }
