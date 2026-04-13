@@ -43,7 +43,7 @@ The example depends on the local `rrcp` package via `[tool.uv.sources]` pointing
 
 ### 4. Talk to it
 
-Any rrcp client can connect. Pass `Authorization: Bearer <user_id>` — the handshake callback treats the token as the user id for this demo. Create a thread, add the assistant identity `{id: "claude", name: "claude", role: "assistant"}` as a member, post a message, and invoke the `claude` assistant. You'll see:
+Any rrcp client can connect. Pass `Authorization: Bearer <user_id>` — the handshake callback treats the token as the user id for this demo. Create a thread, add the assistant identity `{id: "claude", name: "claude", role: "assistant"}` as a member, then post a message with `recipients: ["claude"]`. The server auto-invokes the `claude` assistant — no separate `/invocations` call needed. You'll see:
 
 - `stream:start` on the thread room
 - N `stream:delta` frames as tokens arrive
@@ -53,16 +53,16 @@ Any rrcp client can connect. Pass `Authorization: Bearer <user_id>` — the hand
 ## Wire-level walkthrough
 
 ```
-client → POST /acp/threads/{id}/messages          (user message persisted + broadcast)
-client → POST /acp/threads/{id}/invocations       (run created)
-server ← run.started                              (broadcast on event)
-server ← stream:start { event_id, run_id, ... }   (stream channel)
-server ← stream:delta { event_id, text: "Hello" } (stream channel)
+client → POST /acp/threads/{id}/messages
+         { recipients: ["claude"], content: [...] }  (user message persisted + auto-invoke)
+server ← run.started                                 (broadcast on event)
+server ← stream:start { event_id, run_id, ... }      (stream channel)
+server ← stream:delta { event_id, text: "Hello" }    (stream channel)
 server ← stream:delta { event_id, text: " there" }
 ...
-server ← stream:end { event_id }                  (stream channel)
-server ← MessageEvent { id: event_id, ... }       (broadcast on event, persisted)
-server ← run.completed                            (broadcast on event)
+server ← stream:end { event_id }                     (stream channel)
+server ← MessageEvent { id: event_id, ... }          (broadcast on event, persisted)
+server ← run.completed                               (broadcast on event)
 ```
 
 The `event_id` is the same across `stream:start`, every `stream:delta`, `stream:end`, and the final persisted `MessageEvent`.
