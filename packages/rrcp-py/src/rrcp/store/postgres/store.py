@@ -97,14 +97,27 @@ class PostgresThreadStore:
     async def append_event(self, event: Event) -> Event:
         payload = event.model_dump(
             mode="json",
-            exclude={"id", "thread_id", "run_id", "author", "created_at", "metadata", "client_id", "type"},
+            exclude={
+                "id",
+                "thread_id",
+                "run_id",
+                "author",
+                "created_at",
+                "metadata",
+                "client_id",
+                "recipients",
+                "type",
+            },
             by_alias=True,
         )
         async with self._pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO events (id, thread_id, run_id, type, author, payload, metadata, client_id, created_at)
-                VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8, $9)
+                INSERT INTO events (
+                    id, thread_id, run_id, type, author, payload,
+                    metadata, client_id, recipients, created_at
+                )
+                VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8, $9::jsonb, $10)
                 """,
                 event.id,
                 event.thread_id,
@@ -114,6 +127,7 @@ class PostgresThreadStore:
                 json.dumps(payload),
                 json.dumps(event.metadata),
                 event.client_id,
+                json.dumps(event.recipients) if event.recipients is not None else None,
                 event.created_at,
             )
         return event
@@ -122,7 +136,7 @@ class PostgresThreadStore:
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
-                SELECT id, thread_id, run_id, type, author, payload, metadata, client_id, created_at
+                SELECT id, thread_id, run_id, type, author, payload, metadata, client_id, recipients, created_at
                 FROM events WHERE id = $1
                 """,
                 event_id,
@@ -152,7 +166,7 @@ class PostgresThreadStore:
             where.append(f"type = ANY(${len(args)}::text[])")
         args.append(limit + 1)
         sql = (
-            "SELECT id, thread_id, run_id, type, author, payload, metadata, client_id, created_at "
+            "SELECT id, thread_id, run_id, type, author, payload, metadata, client_id, recipients, created_at "
             "FROM events WHERE " + " AND ".join(where) + f" ORDER BY created_at, id LIMIT ${len(args)}"
         )
         async with self._pool.acquire() as conn:
@@ -332,6 +346,7 @@ def _row_to_event(row: asyncpg.Record) -> Event:
     payload = _decode_jsonb(row["payload"])
     author = _decode_jsonb(row["author"])
     metadata = _decode_jsonb(row["metadata"])
+    recipients = _decode_jsonb(row["recipients"]) if row["recipients"] is not None else None
     raw = {
         "id": row["id"],
         "thread_id": row["thread_id"],
@@ -340,6 +355,7 @@ def _row_to_event(row: asyncpg.Record) -> Event:
         "author": author,
         "metadata": metadata,
         "client_id": row["client_id"],
+        "recipients": recipients,
         "created_at": row["created_at"],
         **payload,
     }
